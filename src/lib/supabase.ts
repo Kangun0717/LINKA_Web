@@ -11,7 +11,7 @@ let client: SupabaseClient | null = null
  */
 export function getSupabase(): SupabaseClient {
   if (!client) {
-    client = createClient(env.supabaseUrl(), env.supabaseAnonKey())
+    client = createClient(env.supabaseUrl(), env.supabasePublishableKey())
   }
 
   return client

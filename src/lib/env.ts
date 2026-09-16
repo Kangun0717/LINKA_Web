@@ -14,6 +14,6 @@ function requireEnv(key: string, value: string | undefined): string {
 
 export const env = {
   supabaseUrl: () => requireEnv('VITE_SUPABASE_URL', import.meta.env.VITE_SUPABASE_URL),
-  supabaseAnonKey: () =>
-    requireEnv('VITE_SUPABASE_ANON_KEY', import.meta.env.VITE_SUPABASE_ANON_KEY),
+  supabasePublishableKey: () =>
+    requireEnv('VITE_SUPABASE_PUBLISHABLE_KEY', import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY),
 }
