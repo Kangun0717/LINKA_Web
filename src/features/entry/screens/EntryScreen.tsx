@@ -26,7 +26,7 @@ export default function EntryScreen() {
       </div>
 
       <div className="mt-12 shrink-0">
-        <Button onClick={() => navigate('/reveal')}>Enter LINKA</Button>
+        <Button onClick={() => navigate('/legacy/reveal')}>Enter LINKA</Button>
         <p className="mt-5 text-center text-xs leading-relaxed text-sand-faint">
           Temporary entry for development.
           <br />

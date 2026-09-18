@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 
 import Button from '@/components/ui/Button'
 import Screen from '@/components/ui/Screen'
-import TouchPointMark from '@/features/entry/components/TouchPointMark'
+import TouchPointMark from '@/components/brand/TouchPointMark'
 
 /**
  * Brand reveal.

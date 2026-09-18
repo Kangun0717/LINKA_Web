@@ -1,25 +1,29 @@
 import Screen from '@/components/ui/Screen'
-import TouchPointMark from '@/features/entry/components/TouchPointMark'
+import QuietWorld from '@/features/world/components/QuietWorld'
 import AppShell from '@/layouts/AppShell'
 
 /**
- * Temporary authenticated home.
+ * My World — the placeholder.
  *
- * Sprint 2 replaces this entirely with the "Map is Home" experience, where the
- * places a user has physically touched become their world.
+ * Deliberately empty: no map, no places, no counts. The long-term concept is
+ * that this world stays dark until the user physically touches somewhere, and
+ * showing invented data here would undermine exactly the thing that makes
+ * LINKA different.
  */
 export default function HomeScreen() {
   return (
     <AppShell>
       <Screen>
         <div className="flex flex-1 flex-col justify-center text-center">
-          <TouchPointMark className="mx-auto text-sand-faint" />
+          <QuietWorld />
 
-          <h1 className="mt-10 text-4xl font-light tracking-[0.2em] text-sand sm:text-5xl">LINKA</h1>
+          <h1 className="mt-12 text-2xl font-light tracking-[0.18em] text-sand">My World</h1>
 
-          <p className="mt-10 text-lg text-sand">Your world is waiting.</p>
-
-          <p className="mt-3 text-sm text-sand-muted">0 places discovered</p>
+          <p className="mt-5 text-sm leading-relaxed text-sand-muted">
+            Quiet for now.
+            <br />
+            Touch somewhere real, and it begins to light up.
+          </p>
         </div>
       </Screen>
     </AppShell>

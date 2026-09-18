@@ -1,5 +1,5 @@
 import Screen from '@/components/ui/Screen'
-import TouchPointMark from '@/features/entry/components/TouchPointMark'
+import TouchPointMark from '@/components/brand/TouchPointMark'
 
 /** Shown while the stored session or profile is being restored. */
 export default function LoadingScreen({ label = 'Loading' }: { label?: string }) {

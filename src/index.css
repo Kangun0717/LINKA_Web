@@ -7,8 +7,13 @@
  * so the product reads as emotional rather than as a SaaS dashboard.
  */
 @theme {
+  /*
+   * System stack by choice, not by omission. A webfont would cost a blocking
+   * request and risk a reflow landing mid-door-animation, which is the worst
+   * possible moment for one.
+   */
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   /* Warm ink surfaces */
   --color-ink: #0b0a09;
@@ -24,6 +29,46 @@
   --color-glow: #e2b271;
 
   --ease-calm: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-door: cubic-bezier(0.42, 0, 0.18, 1);
+
+  --animate-breathe: linka-breathe 4.5s ease-in-out infinite;
+  --animate-halo: linka-halo 4.5s ease-in-out infinite;
+  --animate-ripple: linka-ripple 900ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+/* The Touch Point waiting to be found: a slow, shallow pulse, never a blink. */
+@keyframes linka-breathe {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+}
+
+@keyframes linka-halo {
+  0%,
+  100% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
+/* One ring leaving the mark on touch — acknowledgement, not decoration. */
+@keyframes linka-ripple {
+  from {
+    opacity: 0.5;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 0;
+    transform: scale(4.2);
+  }
 }
 
 html,

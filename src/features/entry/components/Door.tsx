@@ -1,4 +1,4 @@
-import TouchPointMark from '@/features/entry/components/TouchPointMark'
+import TouchPointMark from '@/components/brand/TouchPointMark'
 
 /**
  * Placeholder composition for the physical Touch Point.
