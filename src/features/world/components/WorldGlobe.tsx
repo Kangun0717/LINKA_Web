@@ -20,6 +20,11 @@ type WorldGlobeProps = {
   frame: WorldFrame
   land: LandPaths
   blooms: readonly Bloom[]
+  /**
+   * 1 → 0 as the camera approaches a country: the glass — its air, its sheen
+   * and its rim — thins away and leaves the land. At rest it is always 1.
+   */
+  atmosphere?: number
 }
 
 const EDGE_SEEDS = [7, 23, 41] as const
@@ -40,7 +45,14 @@ const tone = (token: string, opacity = 1): CSSProperties => ({
  * coast. Where touches sit close together their washes overlap and read as one
  * remembered region, which is the whole of "merging" at world scale.
  */
-export default function WorldGlobe({ width, height, frame, land, blooms }: WorldGlobeProps) {
+export default function WorldGlobe({
+  width,
+  height,
+  frame,
+  land,
+  blooms,
+  atmosphere = 1,
+}: WorldGlobeProps) {
   const uid = useId().replace(/:/g, '')
   const id = (name: string) => `${uid}-${name}`
   const url = (name: string) => `url(#${id(name)})`
@@ -120,10 +132,12 @@ export default function WorldGlobe({ width, height, frame, land, blooms }: World
       </defs>
 
       {/* Atmosphere: breathing so slowly it reads as air, not animation. */}
-      <circle cx={cx} cy={cy} r={r + 44} fill={url('air')} className="animate-air" />
+      <g opacity={atmosphere}>
+        <circle cx={cx} cy={cy} r={r + 44} fill={url('air')} className="animate-air" />
+      </g>
 
       {/* The glass world. */}
-      <circle cx={cx} cy={cy} r={r} fill={url('glass')} opacity="0.94" />
+      <circle cx={cx} cy={cy} r={r} fill={url('glass')} opacity={0.94 * atmosphere} />
 
       <g clipPath={url('sphere')}>
         {/* Untouched land: frosted into the glass, no line drawn. */}
@@ -173,28 +187,30 @@ export default function WorldGlobe({ width, height, frame, land, blooms }: World
 
         {/* One highlight on the glass. */}
         <ellipse
+          opacity={0.5 * atmosphere}
           cx={cx - r * 0.34}
           cy={cy - r * 0.62}
           rx={r * 0.36}
           ry={r * 0.13}
           transform={`rotate(-22 ${cx - r * 0.34} ${cy - r * 0.62})`}
           fill="#ffffff"
-          opacity="0.5"
           filter={url('soft')}
         />
       </g>
 
       {/* The rim: light on the edge, and a hair of blue beyond it. */}
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.95" />
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r + 1}
-        fill="none"
-        stroke="var(--color-mist-deep)"
-        strokeWidth="0.8"
-        opacity="0.8"
-      />
+      <g opacity={atmosphere}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.95" />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r + 1}
+          fill="none"
+          stroke="var(--color-mist-deep)"
+          strokeWidth="0.8"
+          opacity="0.8"
+        />
+      </g>
     </svg>
   )
 }

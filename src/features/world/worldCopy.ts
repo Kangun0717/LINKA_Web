@@ -6,11 +6,28 @@ export const WORLD_COPY = {
   title: 'My World',
   /** Zero touches only — a whisper, not an empty state. */
   quiet: 'Your world appears where you touch.',
+  back: 'Back',
+  /** A place seen from afar. Never says visited, never says checked in. */
+  discovery: {
+    notVisited: 'Not visited yet',
+    activities: 'Things to do',
+    language: 'Language',
+    languages: { en: 'English', ja: '日本語' },
+    close: 'Close',
+    sample: 'Sample information for the prototype — not live or official.',
+    a11y: (name: string, nameLatin: string) => `${name}, ${nameLatin}, not visited yet`,
+  },
   a11y: {
     world: 'Your world',
     quietWorld: 'Your world has not been revealed yet.',
     place: (name: string, locality: string | null, date: string) =>
       [name, locality, `touched ${date}`].filter(Boolean).join(', '),
+    enter: (name: string, nameLatin: string) => `Enter ${name}, ${nameLatin}`,
+    backTo: (name: string) => `Back to ${name}`,
+    country: (name: string, nameLatin: string) => `${name}, ${nameLatin}`,
+    localMap: (name: string, nameLatin: string) => `${name}, ${nameLatin}, a hand-drawn map`,
+    discoverable: (name: string, nameLatin: string) => `${name}, ${nameLatin}, not visited yet`,
+    photo: (name: string) => `Your photo at ${name}`,
   },
 } as const
 

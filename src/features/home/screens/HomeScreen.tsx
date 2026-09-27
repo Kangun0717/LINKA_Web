@@ -1,5 +1,6 @@
 import MyWorld from '@/features/world/components/MyWorld'
 import { useMyWorld } from '@/features/world/data/useMyWorld'
+import { useWorldPath } from '@/features/world/useWorldPath'
 import AppShell from '@/layouts/AppShell'
 
 /**
@@ -10,10 +11,11 @@ import AppShell from '@/layouts/AppShell'
  */
 export default function HomeScreen() {
   const world = useMyWorld()
+  const { path, enter, back } = useWorldPath()
 
   return (
     <AppShell>
-      <MyWorld snapshot={world} />
+      <MyWorld snapshot={world} path={path} onEnter={enter} onBack={back} />
     </AppShell>
   )
 }

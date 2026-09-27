@@ -85,6 +85,16 @@
   --color-sun: #f7e7b4;
 }
 
+/* A level's name, arriving after the camera has done the moving. */
+@keyframes linka-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* The Touch Point waiting to be found: a slow, shallow pulse, never a blink. */
 @keyframes linka-breathe {
   0%,

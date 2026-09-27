@@ -88,7 +88,7 @@ export function PlaceIdentity({ place }: { place: WorldPlace }) {
             {place.locality}
           </p>
         )}
-        <p className="mt-1 text-[0.6rem] uppercase leading-tight tracking-[0.2em] text-graphite-faint tabular-nums">
+        <p className="mt-1 text-[0.6rem] uppercase leading-tight tracking-[0.2em] text-graphite-soft/85 tabular-nums">
           {formatTouchDate(place.firstTouchedAt)}
         </p>
       </div>

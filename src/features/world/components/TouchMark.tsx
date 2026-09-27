@@ -7,6 +7,11 @@ type TouchMarkProps = {
   selected: boolean
   /** Plays the single arrival ripple, once, on mount of this state. */
   arriving: boolean
+  /**
+   * Close in, a touched place keeps its ))) faintly at rest, so it reads as
+   * :))) beside the ○ of places not yet touched. The globe never sets this.
+   */
+  signed?: boolean
 }
 
 /**
@@ -15,10 +20,11 @@ type TouchMarkProps = {
  * At rest it is the sticker reduced to its essence: a small white disc with
  * one graphite dot — the `:` of `:)))` collapsed to a point. It is never a
  * pin: nothing points down at the map, because the place is not being
- * marked, it is being remembered. Selecting it lets the three arcs return,
- * which is the only moment the full mark appears on the world.
+ * marked, it is being remembered. Selecting it lets the three arcs return;
+ * close in, on a local map, they stay faintly present — :))) against the ○
+ * of places that have only been discovered.
  */
-export default function TouchMark({ recent, selected, arriving }: TouchMarkProps) {
+export default function TouchMark({ recent, selected, arriving, signed = false }: TouchMarkProps) {
   return (
     <span aria-hidden className="relative block size-3">
       {recent && (
@@ -45,7 +51,11 @@ export default function TouchMark({ recent, selected, arriving }: TouchMarkProps
         focusable="false"
         className={cn(
           'absolute left-[calc(100%+1px)] top-1/2 size-6 -translate-y-1/2 text-graphite transition-all duration-500 ease-calm',
-          selected ? 'translate-x-0 opacity-100' : '-translate-x-1 opacity-0',
+          selected
+            ? 'translate-x-0 opacity-100'
+            : signed
+              ? 'translate-x-0 opacity-55'
+              : '-translate-x-1 opacity-0',
         )}
       >
         <g fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">

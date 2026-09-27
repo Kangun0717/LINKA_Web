@@ -1,3 +1,4 @@
+import { mayBeVisible, screenReach } from '@/features/world/geo/caps'
 import { LAND_RINGS } from '@/features/world/geo/landRings'
 import type { WorldPlace } from '@/features/world/model/types'
 
@@ -105,7 +106,9 @@ function sphericalCentre(places: readonly WorldPlace[]): { lng: number; lat: num
   return { lng: Math.atan2(y, x) / RAD, lat: Math.atan2(z, Math.hypot(x, y)) / RAD }
 }
 
-const fmt = (n: number) => n.toFixed(1)
+const fmtFine = (n: number) => n.toFixed(1)
+/** Whole pixels: five times cheaper to write, and invisible while moving. */
+const fmtCoarse = (n: number) => String(Math.round(n))
 
 export type LandPaths = {
   /** Land filled the ordinary way. */
@@ -129,13 +132,24 @@ export type LandPaths = {
  * out the further round the back it is. That keeps every outline a simple
  * shape, so the sphere's clip path cuts it exactly at the horizon — no clipping
  * geometry, and no library, required.
+ *
+ * `screen`, when given, skips land that cannot reach the screen, and `coarse`
+ * writes whole pixels — both for frames of a move, where every frame counts
+ * and nothing holds still long enough to see the difference.
  */
-export function landPaths(frame: WorldFrame): LandPaths {
+export function landPaths(
+  frame: WorldFrame,
+  screen?: { width: number; height: number },
+  coarse = false,
+): LandPaths {
   const { cx, cy, r } = frame
   const rings: { d: string; area: number; wholeVisible: boolean }[] = []
   const coast: string[] = []
+  const fmt = coarse ? fmtCoarse : fmtFine
+  const reach = screen ? screenReach(frame, screen.width, screen.height) : Math.PI / 2
 
   for (const ring of LAND_RINGS) {
+    if (!mayBeVisible(frame, ring, reach)) continue
     const points: ScreenPoint[] = []
     let visibleCount = 0
 
@@ -195,7 +209,7 @@ export function landPaths(frame: WorldFrame): LandPaths {
  * the rim in the same direction, pushed further out the nearer it is to the
  * point directly behind the world.
  */
-function projectBeyond(frame: WorldFrame, lng: number, lat: number): ScreenPoint {
+export function projectBeyond(frame: WorldFrame, lng: number, lat: number): ScreenPoint {
   const p = project(frame, lng, lat)
   if (p.visible) return p
 

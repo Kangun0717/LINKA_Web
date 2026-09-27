@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import AuthProvider from '@/features/auth/AuthProvider'
@@ -7,21 +7,15 @@ import VerifyScreen from '@/features/auth/screens/VerifyScreen'
 import DoorExperience from '@/features/door/DoorExperience'
 import BrandRevealScreen from '@/features/entry/screens/BrandRevealScreen'
 import EntryScreen from '@/features/entry/screens/EntryScreen'
-import HomeScreen from '@/features/home/screens/HomeScreen'
 import ProfileProvider from '@/features/onboarding/ProfileProvider'
 import GuestOnly from '@/routes/GuestOnly'
 import OnboardingRoute from '@/routes/OnboardingRoute'
 import RequireProfile from '@/routes/RequireProfile'
 import RequireSession from '@/routes/RequireSession'
+import { HomeScreen, MyWorldPreviewScreen } from '@/routes/lazyScreens'
 
-/**
- * Dev-only design previews. `import.meta.env.DEV` is a build-time constant, so
- * in production this is `null`, the route below is never registered, and the
- * preview module and its scenarios are left out of the bundle entirely.
- */
-const MyWorldPreviewScreen = import.meta.env.DEV
-  ? lazy(() => import('@/features/world/preview/MyWorldPreviewScreen'))
-  : null
+/** The world's own surface while its chunk arrives — never a dark flash. */
+const worldFallback = <div className="h-dvh bg-canvas" />
 
 /**
  * Real-world touch → door → LINKA → email OTP → profile → your own world.
@@ -32,6 +26,12 @@ const MyWorldPreviewScreen = import.meta.env.DEV
  * behind it is gated by the same guards as before.
  */
 export default function App() {
+  // Whatever the entrance, fetch My World once the first screen has settled.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1200))
+    idle(() => void HomeScreen.preload())
+  }, [])
+
   return (
     <AuthProvider>
       <ProfileProvider>
@@ -47,7 +47,14 @@ export default function App() {
             <Route path="/onboarding" element={<OnboardingRoute />} />
 
             <Route element={<RequireProfile />}>
-              <Route path="/home" element={<HomeScreen />} />
+              <Route
+                path="/home"
+                element={
+                  <Suspense fallback={worldFallback}>
+                    <HomeScreen />
+                  </Suspense>
+                }
+              />
             </Route>
           </Route>
 
@@ -59,7 +66,7 @@ export default function App() {
             <Route
               path="/preview/my-world"
               element={
-                <Suspense fallback={null}>
+                <Suspense fallback={worldFallback}>
                   <MyWorldPreviewScreen />
                 </Suspense>
               }
