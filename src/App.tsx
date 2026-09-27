@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import AuthProvider from '@/features/auth/AuthProvider'
@@ -12,6 +13,15 @@ import GuestOnly from '@/routes/GuestOnly'
 import OnboardingRoute from '@/routes/OnboardingRoute'
 import RequireProfile from '@/routes/RequireProfile'
 import RequireSession from '@/routes/RequireSession'
+
+/**
+ * Dev-only design previews. `import.meta.env.DEV` is a build-time constant, so
+ * in production this is `null`, the route below is never registered, and the
+ * preview module and its scenarios are left out of the bundle entirely.
+ */
+const MyWorldPreviewScreen = import.meta.env.DEV
+  ? lazy(() => import('@/features/world/preview/MyWorldPreviewScreen'))
+  : null
 
 /**
  * Real-world touch → door → LINKA → email OTP → profile → your own world.
@@ -44,6 +54,17 @@ export default function App() {
           {/* Sprint 1A entrance, kept reachable for visual comparison only. */}
           <Route path="/legacy/entry" element={<EntryScreen />} />
           <Route path="/legacy/reveal" element={<BrandRevealScreen />} />
+
+          {MyWorldPreviewScreen && (
+            <Route
+              path="/preview/my-world"
+              element={
+                <Suspense fallback={null}>
+                  <MyWorldPreviewScreen />
+                </Suspense>
+              }
+            />
+          )}
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -9,7 +9,7 @@ export default function RequireProfile() {
   const { profile, loading } = useProfileContext()
 
   if (loading) {
-    return <LoadingScreen label="Loading your world" />
+    return <LoadingScreen label="Loading your world" tone="paper" />
   }
 
   if (!isProfileComplete(profile)) {

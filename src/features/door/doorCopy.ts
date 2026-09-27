@@ -12,6 +12,7 @@ export const DOOR_COPY = {
   /** Accessible names — not shown on screen. */
   a11y: {
     trigger: 'Touch the LINKA Touch Point to enter',
+    handle: 'Open the door',
     triggerHint: 'Development trigger. In the shipped product this is a physical Touch Point.',
     opening: 'Opening LINKA',
     skip: 'Skip',

@@ -5,6 +5,7 @@ import LoadingScreen from '@/components/ui/LoadingScreen'
 import { useAuth } from '@/features/auth/useAuth'
 import DoorScene from '@/features/door/components/DoorScene'
 import FirstPersonHand from '@/features/door/components/FirstPersonHand'
+import InkDefs from '@/features/door/components/InkDefs'
 import LightWash from '@/features/door/components/LightWash'
 import LinkaReveal from '@/features/door/components/LinkaReveal'
 import { DOOR_COPY } from '@/features/door/doorCopy'
@@ -67,7 +68,7 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
 
   if (isResumingAuth) {
     if (authLoading) {
-      return <LoadingScreen label={DOOR_COPY.a11y.opening} />
+      return <LoadingScreen label={DOOR_COPY.a11y.opening} tone="paper" />
     }
 
     if (!session) {
@@ -75,7 +76,7 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
     }
 
     if (profileLoading) {
-      return <LoadingScreen label={DOOR_COPY.a11y.opening} />
+      return <LoadingScreen label={DOOR_COPY.a11y.opening} tone="paper" />
     }
 
     return <Navigate to={nextStepFor(profile)} replace />
@@ -84,7 +85,16 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
   const isPastRoom = isAtOrAfter(state, 'brand')
 
   return (
-    <main data-door-state={state} className="relative h-dvh w-full overflow-hidden bg-ink">
+    <main
+      data-door-state={state}
+      className={cn(
+        // One page of paper for the whole entrance, gaining light as it goes.
+        'relative h-dvh w-full overflow-hidden transition-colors duration-[1200ms] ease-door',
+        isPastRoom ? 'bg-paper-lit' : 'bg-paper',
+      )}
+    >
+      <InkDefs />
+
       {!reducedMotion ? (
         <>
           <DoorScene state={state} onTouch={() => start({ source: 'direct' })} />
@@ -92,11 +102,20 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
         </>
       ) : null}
 
-      {/* The room gives way to ink beneath the wash, so the brand lands on it. */}
+      {/*
+        The room clears beneath the wash so the brand has somewhere quiet to
+        land — onto lit paper, never onto ink. The drawing is not replaced by
+        another screen; it is simply overexposed by its own daylight.
+
+        `pointer-events-none` is load-bearing, not tidiness: this layer is
+        full-bleed and sits above the scene for the whole entrance, and an
+        element at `opacity: 0` is still hit-tested. Without it, it silently
+        swallows every touch aimed at the door.
+      */}
       <div
         aria-hidden
         className={cn(
-          'absolute inset-0 bg-ink transition-opacity duration-500',
+          'pointer-events-none absolute inset-0 bg-paper-lit transition-opacity duration-500',
           isPastRoom ? 'opacity-100' : 'opacity-0',
         )}
       />
@@ -114,7 +133,7 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
             type="button"
             onClick={() => start({ source: 'direct' })}
             aria-label={DOOR_COPY.a11y.trigger}
-            className="rounded-full px-8 py-6 text-2xl text-sand outline-none focus-visible:ring-2 focus-visible:ring-glow"
+            className="rounded-full px-8 py-6 text-2xl text-graphite outline-none focus-visible:ring-2 focus-visible:ring-graphite/50"
           >
             <span className="touchpoint-mark">:)))</span>
           </button>
@@ -129,7 +148,7 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
         <button
           type="button"
           onClick={skip}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full px-5 py-2 text-xs tracking-wide text-sand-faint outline-none transition-colors duration-300 hover:text-sand-muted focus-visible:ring-2 focus-visible:ring-glow"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full px-5 py-2 text-xs tracking-wide text-graphite-faint outline-none transition-colors duration-300 hover:text-graphite-soft focus-visible:ring-2 focus-visible:ring-graphite/50"
         >
           {DOOR_COPY.a11y.skip}
         </button>
