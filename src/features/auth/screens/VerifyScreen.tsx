@@ -3,37 +3,39 @@ import { Navigate, useNavigate } from 'react-router-dom'
 
 import Button from '@/components/ui/Button'
 import Screen from '@/components/ui/Screen'
-import { sendLoginCode, verifyLoginCode } from '@/features/auth/api'
+import { sendSignUpCode, verifyCode, type Identity } from '@/features/auth/api'
 import OtpInput, { OTP_LENGTH } from '@/features/auth/components/OtpInput'
 import { describeAuthError } from '@/features/auth/errors'
-import { pendingEmail } from '@/features/auth/pendingEmail'
+import { describeIdentity, pendingIdentity } from '@/features/auth/pendingIdentity'
+import { doorSession } from '@/features/door/doorSession'
 import { useCountdown } from '@/hooks/useCountdown'
+import { useAuthMessages } from '@/lib/i18n/authMessages'
 
 const RESEND_COOLDOWN_SECONDS = 45
 
 /**
- * Step two of sign-in.
+ * Create account, step two.
  *
  * Without a pending address there is nothing to verify, so the user goes back
- * to the email step rather than seeing an empty code screen.
+ * to the first step rather than seeing an empty code screen.
  */
 export default function VerifyScreen() {
-  const [email] = useState(() => pendingEmail.read())
+  const [identity] = useState(() => pendingIdentity.read())
 
-  if (!email) {
-    return <Navigate to="/auth" replace />
+  if (!identity) {
+    return <Navigate to="/auth/signup" replace />
   }
 
-  return <VerifyForm email={email} />
+  return <VerifyForm identity={identity} />
 }
 
 /**
  * Exchanges the six-digit code for a session.
  *
- * Routing after success is left to the session-aware guards — this screen only
- * has to establish the session.
+ * Routing after success is left to the session-aware guards — next, for a new
+ * account, is choosing a password.
  */
-function VerifyForm({ email }: { email: string }) {
+function VerifyForm({ identity }: { identity: Identity }) {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +43,7 @@ function VerifyForm({ email }: { email: string }) {
   const [verifying, setVerifying] = useState(false)
   const [resending, setResending] = useState(false)
   const { secondsLeft, start, isRunning } = useCountdown()
+  const t = useAuthMessages()
 
   useEffect(() => {
     start(RESEND_COOLDOWN_SECONDS)
@@ -56,14 +59,13 @@ function VerifyForm({ email }: { email: string }) {
     setVerifying(true)
 
     try {
-      await verifyLoginCode(email, value)
-      pendingEmail.clear()
-      // AuthProvider picks the new session up; the guards decide where to land.
-      navigate('/', { replace: true })
+      await verifyCode(identity, value)
+      pendingIdentity.clear()
+      doorSession.clear()
+      // GuestOnly routes onward once AuthProvider has the session.
     } catch (cause) {
-      setError(describeAuthError(cause, 'That code is not valid. Please try again.'))
+      setError(describeAuthError(cause, t.errors.codeInvalid, t.errors))
       setCode('')
-    } finally {
       setVerifying(false)
     }
   }
@@ -77,12 +79,12 @@ function VerifyForm({ email }: { email: string }) {
     setResending(true)
 
     try {
-      await sendLoginCode(email)
+      await sendSignUpCode(identity)
       setCode('')
-      setNotice('A new code is on its way.')
+      setNotice(t.verify.newCode)
       start(RESEND_COOLDOWN_SECONDS)
     } catch (cause) {
-      setError(describeAuthError(cause, 'We could not resend your code. Please try again.'))
+      setError(describeAuthError(cause, t.errors.sendFailed, t.errors))
     } finally {
       setResending(false)
     }
@@ -97,13 +99,11 @@ function VerifyForm({ email }: { email: string }) {
     <Screen>
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
         <div className="flex flex-1 flex-col justify-center">
-          <h1 className="text-3xl font-light leading-snug tracking-tight text-sand">
-            Check your email
-          </h1>
+          <h1 className="text-3xl font-light leading-snug tracking-tight text-sand">{t.verify.title(identity.kind)}</h1>
           <p className="mt-4 text-sm leading-relaxed text-sand-muted">
-            We&rsquo;ve sent a 6-digit code to
+            {t.verify.sentTo}
             <br />
-            <span className="text-sand">{email}</span>
+            <span className="text-sand">{describeIdentity(identity)}</span>
           </p>
 
           <div className="mt-12">
@@ -131,23 +131,23 @@ function VerifyForm({ email }: { email: string }) {
         </div>
 
         <div className="mt-10 shrink-0 space-y-4">
-          <Button type="submit" loading={verifying} disabled={code.length !== OTP_LENGTH}>
-            Verify
+          <Button type="submit" loading={verifying} busyLabel={t.busy} disabled={code.length !== OTP_LENGTH}>
+            {t.verify.verify}
           </Button>
 
           <Button variant="quiet" onClick={handleResend} disabled={isRunning || resending}>
-            {isRunning ? `Resend code in ${secondsLeft}s` : 'Resend code'}
+            {isRunning ? t.verify.resendIn(secondsLeft) : t.verify.resend}
           </Button>
 
           <button
             type="button"
             onClick={() => {
-              pendingEmail.clear()
-              navigate('/auth', { replace: true })
+              pendingIdentity.clear()
+              navigate('/auth/signup', { replace: true })
             }}
             className="mx-auto block text-xs text-sand-faint underline-offset-4 hover:underline"
           >
-            Use a different email
+            {identity.kind === 'email' ? t.verify.differentEmail : t.verify.differentNumber}
           </button>
         </div>
       </form>

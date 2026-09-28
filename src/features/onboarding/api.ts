@@ -19,7 +19,7 @@ export type ProfileDraft = {
  * who has just verified their first code.
  */
 export async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await getSupabase()
+  const { data, error } = await (await getSupabase())
     .from('profiles')
     .select('*')
     .eq('id', userId)
@@ -41,7 +41,7 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
  * database trigger on sign-up.
  */
 export async function saveProfile(userId: string, draft: ProfileDraft): Promise<Profile> {
-  const { data, error } = await getSupabase()
+  const { data, error } = await (await getSupabase())
     .from('profiles')
     .upsert(
       {
@@ -67,4 +67,20 @@ export async function saveProfile(userId: string, draft: ProfileDraft): Promise<
 /** Onboarding is complete once the user has chosen a nickname. */
 export function isProfileComplete(profile: Profile | null): boolean {
   return Boolean(profile?.display_name?.trim())
+}
+
+/** Remember the account's language, so every device starts in it. */
+export async function savePreferredLocale(userId: string, locale: string): Promise<Profile> {
+  const { data, error } = await (await getSupabase())
+    .from('profiles')
+    .update({ preferred_locale: locale })
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data
 }

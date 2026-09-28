@@ -7,32 +7,36 @@ import { getSupabase } from '@/lib/supabase'
 /**
  * Single source of truth for the Supabase session.
  *
- * Mounting this once at the root is what makes a returning user skip the OTP
- * step: Supabase restores the persisted session from browser storage and this
- * provider republishes it to the whole tree.
+ * Mounting this once at the root is what lets a returning user skip signing
+ * in: Supabase restores the persisted session from browser storage and this
+ * provider republishes it to the whole tree. The client itself is loaded here,
+ * after the first render, so it never delays the Door's first paint.
  */
 export default function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
 
   useEffect(() => {
-    const supabase = getSupabase()
     let active = true
+    let unsubscribe = () => {}
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) {
-        setSession(data.session)
-      }
-    })
+    void getSupabase().then((supabase) => {
+      if (!active) return
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        if (active) setSession(nextSession)
+      })
+      unsubscribe = () => subscription.unsubscribe()
+
+      return supabase.auth.getSession().then(({ data }) => {
+        if (active) setSession(data.session)
+      })
     })
 
     return () => {
       active = false
-      subscription.unsubscribe()
+      unsubscribe()
     }
   }, [])
 

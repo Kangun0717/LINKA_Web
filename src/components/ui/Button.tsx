@@ -6,6 +6,8 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode
   variant?: 'primary' | 'quiet'
   loading?: boolean
+  /** What a busy button says. */
+  busyLabel?: string
 }
 
 const VARIANTS = {
@@ -18,6 +20,7 @@ export default function Button({
   children,
   variant = 'primary',
   loading = false,
+  busyLabel = 'Just a moment…',
   className,
   disabled,
   type = 'button',
@@ -38,7 +41,7 @@ export default function Button({
       )}
       {...rest}
     >
-      {loading ? <span className="opacity-70">Just a moment…</span> : children}
+      {loading ? <span className="opacity-70">{busyLabel}</span> : children}
     </button>
   )
 }

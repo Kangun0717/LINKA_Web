@@ -57,6 +57,12 @@ export default function LocalMap({
   const uid = useId().replace(/:/g, '')
   const id = (name: string) => `${uid}-${name}`
   const url = (name: string) => `url(#${id(name)})`
+  // SVG filters (the pencil wobble, the watercolour edge, the soft blooms)
+  // are what a camera move cannot afford in Safari/WebKit: they are
+  // re-rasterised on the CPU every frame (measured: World → Japan fell to 5
+  // frames in 2.6 s). While the view moves they are left off; the resting
+  // frame is drawn with every one of them, exactly as before.
+  const fx = (name: string) => (resolved ? url(name) : undefined)
 
   const reach = kmToPx(frame, map.pocketKm)
   const coast = useMemo(() => smoothClosedPath(projectCoords(frame, map.coast)), [frame, map])
@@ -126,7 +132,7 @@ export default function LocalMap({
             <rect width={width} height={height} fill="#000" />
             {placed.map((pocket) => (
               <g key={pocket.id} style={opening(pocket, resolved)}>
-                <circle cx={pocket.x} cy={pocket.y} r={reach} fill={url('pool')} filter={url(`edge-${pocket.variant}`)} />
+                <circle cx={pocket.x} cy={pocket.y} r={reach} fill={url('pool')} filter={fx(`edge-${pocket.variant}`)} />
               </g>
             ))}
           </mask>
@@ -135,7 +141,7 @@ export default function LocalMap({
             <rect width={width} height={height} fill="#fff" />
             {placed.map((pocket) => (
               <g key={pocket.id} style={opening(pocket, resolved)}>
-                <circle cx={pocket.x} cy={pocket.y} r={reach} fill={url('hole')} filter={url(`edge-${pocket.variant}`)} />
+                <circle cx={pocket.x} cy={pocket.y} r={reach} fill={url('hole')} filter={fx(`edge-${pocket.variant}`)} />
               </g>
             ))}
           </mask>
@@ -143,7 +149,7 @@ export default function LocalMap({
 
         <g style={{ opacity: ink }}>
           {/* The sea's edge: warm grey where untouched. */}
-          <path d={coast} fill="none" stroke={SHORE} strokeWidth="9" opacity="0.5" filter={url('bleed')} />
+          <path d={coast} fill="none" stroke={SHORE} strokeWidth="9" opacity="0.5" filter={fx('bleed')} />
           <path d={coast} fill="#fbf8f2" />
 
           {/* The whole island, in pencil. */}
@@ -164,9 +170,9 @@ export default function LocalMap({
                   cy={pocket.y}
                   r={reach * 0.98}
                   fill={url('wash')}
-                  filter={url(`edge-${pocket.variant}`)}
+                  filter={fx(`edge-${pocket.variant}`)}
                 />
-                <circle cx={pocket.x} cy={pocket.y} r={reach * 0.3} fill="var(--color-sun)" opacity="0.55" filter={url('bleed')} />
+                <circle cx={pocket.x} cy={pocket.y} r={reach * 0.3} fill="var(--color-sun)" opacity="0.55" filter={fx('bleed')} />
               </g>
             ))}
           </g>
@@ -175,7 +181,7 @@ export default function LocalMap({
           {detail && placed.length > 0 && (
             <g mask={url('pocket')}>
               <Stage resolved={resolved} delay={250}>
-                <path d={coast} fill="none" stroke="var(--color-mist-deep)" strokeWidth="14" opacity="0.55" filter={url('bleed')} />
+                <path d={coast} fill="none" stroke="var(--color-mist-deep)" strokeWidth="14" opacity="0.55" filter={fx('bleed')} />
               </Stage>
               <Stage resolved={resolved} delay={450}>
                 <Features detail={detail} url={url} colour />
@@ -191,7 +197,7 @@ export default function LocalMap({
             strokeOpacity="0.5"
             strokeWidth="1.05"
             strokeLinejoin="round"
-            filter={url('pen')}
+            filter={fx('pen')}
           />
         </g>
       </svg>

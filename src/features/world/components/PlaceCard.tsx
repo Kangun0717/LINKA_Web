@@ -2,9 +2,10 @@ import { useRef } from 'react'
 
 import type { WorldPlace } from '@/features/world/model/types'
 import { placeCard } from '@/features/world/placeCard'
-import { formatTouchDate } from '@/features/world/worldCopy'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/cn'
+import { useLocale } from '@/lib/i18n/LocaleContext'
+import { formatCalendarDate } from '@/lib/i18n/locale'
 
 type PlaceCardProps = {
   place: WorldPlace
@@ -73,6 +74,8 @@ export default function PlaceCard({ place, anchor, stage, shown, onOpen }: Place
  * Sheet can open with exactly the same heading the card showed.
  */
 export function PlaceIdentity({ place }: { place: WorldPlace }) {
+  const { locale } = useLocale()
+
   return (
     <>
       <div className="flex items-center gap-2.5">
@@ -89,7 +92,7 @@ export function PlaceIdentity({ place }: { place: WorldPlace }) {
           </p>
         )}
         <p className="mt-1 text-[0.6rem] uppercase leading-tight tracking-[0.2em] text-graphite-soft/85 tabular-nums">
-          {formatTouchDate(place.firstTouchedAt)}
+          {formatCalendarDate(place.firstTouchedOn ?? place.firstTouchedAt, locale)}
         </p>
       </div>
     </>

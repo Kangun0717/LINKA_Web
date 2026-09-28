@@ -15,6 +15,8 @@ export type Bloom = {
 }
 
 type WorldGlobeProps = {
+  /** A frame of a camera move: draw without SVG filters. */
+  moving?: boolean
   width: number
   height: number
   frame: WorldFrame
@@ -52,10 +54,17 @@ export default function WorldGlobe({
   land,
   blooms,
   atmosphere = 1,
+  moving = false,
 }: WorldGlobeProps) {
   const uid = useId().replace(/:/g, '')
   const id = (name: string) => `${uid}-${name}`
   const url = (name: string) => `url(#${id(name)})`
+  // SVG filters (the pencil wobble, the watercolour edge, the soft blooms)
+  // are what a camera move cannot afford in Safari/WebKit: they are
+  // re-rasterised on the CPU every frame (measured: World → Japan fell to 5
+  // frames in 2.6 s). While the view moves they are left off; the resting
+  // frame is drawn with every one of them, exactly as before.
+  const fx = (name: string) => (moving ? undefined : url(name))
   const { cx, cy, r } = frame
 
   return (
@@ -124,7 +133,7 @@ export default function WorldGlobe({
                 cy={bloom.y}
                 r={bloom.r}
                 fill={url('pool')}
-                filter={url(`edge-${bloom.variant}`)}
+                filter={fx(`edge-${bloom.variant}`)}
               />
             </g>
           ))}
@@ -146,7 +155,7 @@ export default function WorldGlobe({
         {/* Pigment: the wash each touch has left. Overlaps deepen, like paint. */}
         {blooms.map((bloom) => (
           <g key={bloom.id} style={bloomMotion(bloom, 0)}>
-            <g filter={url(`edge-${bloom.variant}`)}>
+            <g filter={fx(`edge-${bloom.variant}`)}>
               <circle cx={bloom.x} cy={bloom.y} r={bloom.r} fill={url('wash')} />
               <circle
                 cx={bloom.x}
@@ -165,7 +174,7 @@ export default function WorldGlobe({
               r={bloom.r * 0.36}
               fill="var(--color-sun)"
               opacity="0.5"
-              filter={url('soft')}
+              filter={fx('soft')}
             />
           </g>
         ))}
@@ -181,7 +190,7 @@ export default function WorldGlobe({
             strokeWidth="0.8"
             strokeLinejoin="round"
             strokeLinecap="round"
-            filter={url('pen')}
+            filter={fx('pen')}
           />
         </g>
 
@@ -194,7 +203,7 @@ export default function WorldGlobe({
           ry={r * 0.13}
           transform={`rotate(-22 ${cx - r * 0.34} ${cy - r * 0.62})`}
           fill="#ffffff"
-          filter={url('soft')}
+          filter={fx('soft')}
         />
       </g>
 

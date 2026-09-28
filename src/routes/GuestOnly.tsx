@@ -6,17 +6,19 @@ import { useProfileContext } from '@/features/onboarding/useProfileContext'
 import { nextStepFor } from '@/routes/nextStep'
 
 /**
- * The door, the reveal and the OTP screens.
+ * Create account, sign in and forgot password.
  *
  * A returning user with a persisted session never sees them — they are sent
- * straight on, which is what "no OTP again" means in practice.
+ * straight on, which is what "no code again" means in practice. While the
+ * stored session is being restored the screen stays on the Door's paper, so
+ * a signed-in visitor never glimpses the sign-in screens.
  */
 export default function GuestOnly() {
   const { session, loading: authLoading } = useAuth()
   const { profile, loading: profileLoading } = useProfileContext()
 
   if (authLoading) {
-    return <LoadingScreen label="Opening LINKA" />
+    return <LoadingScreen label="Opening LINKA" tone="paper" />
   }
 
   if (!session) {
@@ -24,8 +26,8 @@ export default function GuestOnly() {
   }
 
   if (profileLoading) {
-    return <LoadingScreen label="Opening LINKA" />
+    return <LoadingScreen label="Opening LINKA" tone="paper" />
   }
 
-  return <Navigate to={nextStepFor(profile)} replace />
+  return <Navigate to={nextStepFor(session.user, profile)} replace />
 }

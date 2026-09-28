@@ -1,19 +1,25 @@
-import { cn } from '@/lib/cn'
+import { Link } from 'react-router-dom'
 
-const ITEMS = [
-  { id: 'map', label: 'Map' },
-  { id: 'moments', label: 'Moments' },
-  { id: 'me', label: 'Me' },
-] as const
+import { cn } from '@/lib/cn'
+import { useMessages } from '@/lib/i18n/useMessages'
+
+export type NavId = 'map' | 'moments' | 'me'
+
+const ITEMS: readonly { id: NavId; to: string }[] = [
+  { id: 'map', to: '/home' },
+  { id: 'moments', to: '/moments' },
+  { id: 'me', to: '/me' },
+]
 
 /**
  * Map, Moments, Me — three words resting on the world.
  *
  * No bar, no icons and no centre "+": the physical :))) Touch Point is how
- * anything is added to LINKA. Map is the only destination that exists, so
- * Moments and Me are shown for orientation but stay inert until they do.
+ * anything is added to LINKA.
  */
-export default function BottomNav({ activeId = 'map' }: { activeId?: string }) {
+export default function BottomNav({ activeId = 'map' }: { activeId?: NavId }) {
+  const copy = useMessages()
+
   return (
     <nav
       aria-label="Primary"
@@ -25,23 +31,24 @@ export default function BottomNav({ activeId = 'map' }: { activeId?: string }) {
 
           return (
             <li key={item.id}>
-              <span
+              <Link
+                to={item.to}
                 aria-current={isActive ? 'page' : undefined}
-                className="flex flex-col items-center gap-1.5 px-4 py-2"
+                className="flex min-h-11 flex-col items-center gap-1.5 px-4 py-2 outline-none focus-visible:ring-1 focus-visible:ring-graphite/30"
               >
                 <span
                   className={cn(
                     'text-[0.7rem] tracking-[0.16em]',
-                    isActive ? 'text-graphite' : 'text-graphite-faint/70',
+                    isActive ? 'text-graphite' : 'text-graphite-faint/80',
                   )}
                 >
-                  {item.label}
+                  {copy.nav[item.id]}
                 </span>
                 <span
                   aria-hidden
                   className={cn('size-1 rounded-full', isActive ? 'bg-graphite' : 'bg-transparent')}
                 />
-              </span>
+              </Link>
             </li>
           )
         })}

@@ -184,3 +184,27 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * During a My World flight only the drawn map zooms; marks, names and photo
+ * fragments step out and come back at the arrival (their own transitions fade
+ * them in), so nothing but geography is ever scaled.
+ */
+[data-flying] > :not([data-stage]) {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/*
+ * The drawn map is expensive to paint in WebKit (turbulence + displacement
+ * filters). Giving it, and the one looping halo, their own compositing
+ * layers means the halo's breathing is composited over a cached map instead
+ * of forcing Safari to repaint every filter on every frame, indefinitely.
+ */
+[data-stage] {
+  transform: translateZ(0);
+}
+
+.animate-halo {
+  will-change: transform, opacity;
+}

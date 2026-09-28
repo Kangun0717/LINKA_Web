@@ -35,6 +35,12 @@ export default function CountryMap({ width, height, frame, washes, opacity, movi
   const uid = useId().replace(/:/g, '')
   const id = (name: string) => `${uid}-${name}`
   const url = (name: string) => `url(#${id(name)})`
+  // SVG filters (the pencil wobble, the watercolour edge, the soft blooms)
+  // are what a camera move cannot afford in Safari/WebKit: they are
+  // re-rasterised on the CPU every frame (measured: World → Japan fell to 5
+  // frames in 2.6 s). While the view moves they are left off; the resting
+  // frame is drawn with every one of them, exactly as before.
+  const fx = (name: string) => (moving ? undefined : url(name))
 
   const land = useMemo(
     () =>
@@ -109,7 +115,7 @@ export default function CountryMap({ width, height, frame, washes, opacity, movi
               cy={wash.y}
               r={wash.r}
               fill={url('pool')}
-              filter={url(`edge-${wash.variant}`)}
+              filter={fx(`edge-${wash.variant}`)}
             />
           ))}
         </mask>
@@ -127,7 +133,7 @@ export default function CountryMap({ width, height, frame, washes, opacity, movi
         strokeWidth="0.7"
         strokeLinejoin="round"
         strokeLinecap="round"
-        filter={url('pen')}
+        filter={fx('pen')}
       />
 
       <rect width={width} height={height} fill={url('haze')} />
@@ -139,7 +145,7 @@ export default function CountryMap({ width, height, frame, washes, opacity, movi
             cy={wash.y}
             r={wash.r}
             fill={url('wash')}
-            filter={url(`edge-${wash.variant}`)}
+            filter={fx(`edge-${wash.variant}`)}
           />
           <circle
             cx={wash.x}
@@ -147,7 +153,7 @@ export default function CountryMap({ width, height, frame, washes, opacity, movi
             r={wash.r * 0.34}
             fill="var(--color-sun)"
             opacity="0.5"
-            filter={url('soft')}
+            filter={fx('soft')}
           />
         </g>
       ))}
@@ -163,7 +169,7 @@ export default function CountryMap({ width, height, frame, washes, opacity, movi
           strokeWidth="0.85"
           strokeLinejoin="round"
           strokeLinecap="round"
-          filter={url('pen')}
+          filter={fx('pen')}
         />
       </g>
     </svg>

@@ -24,6 +24,8 @@ import tokiMemory from '@/features/world/preview/photos/toki-memory.jpg'
  *   kinzan-memory.jpg  — "Dōyū no Warito (under angle)", Indiana jo, CC0
  */
 
+const SAMPLE_NOTE = 'Sample information for the prototype — not live or official.'
+
 const TOKI_PHOTO: MemoryPhoto = {
   src: tokiMemory,
   alt: 'A toki wading in a shallow stream',
@@ -117,7 +119,8 @@ const SHUKUNEGI: WorldPlace = {
 
 /**
  * Sado's discoverable places — sample LINKA partner locations. Their text is
- * written for the prototype, not taken from any official source.
+ * written for the prototype, not taken from any official source, and every
+ * one carries a sample note so the card says so.
  */
 export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
   {
@@ -127,10 +130,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: SADO.lat,
     lng: SADO.lng,
     labelSide: 'right',
-    intro: {
-      en: 'A quiet forest park at the edge of the Kuninaka plain, home to the island’s work bringing the crested ibis — the toki — back to the wild.',
-      ja: '国中平野のはずれにある静かな森の公園。トキを野生に戻す、佐渡の取り組みの場所です。',
-    },
+    summary: { text: 'A quiet forest park at the edge of the Kuninaka plain, home to the island’s work bringing the crested ibis — the toki — back to the wild.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: {
       src: tokiDiscovery,
       alt: 'A toki feeding at the water’s edge',
@@ -148,10 +153,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: SADO_KOKUBUNJI.lat,
     lng: SADO_KOKUBUNJI.lng,
     labelSide: 'right',
-    intro: {
-      en: 'Foundation stones of a provincial temple from the eighth century, lying in the grass among the fields.',
-      ja: '八世紀の国分寺の礎石が、田畑のあいだの草地に残っています。',
-    },
+    summary: { text: 'Foundation stones of a provincial temple from the eighth century, lying in the grass among the fields.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: null,
     activities: [],
   },
@@ -162,10 +169,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: SADO_KINZAN.lat,
     lng: SADO_KINZAN.lng,
     labelSide: 'below',
-    intro: {
-      en: 'Four centuries of mining in the mountains above Aikawa, where the hillside was split open by hand.',
-      ja: '相川の山で四百年続いた金山。山は手掘りで二つに割られました。',
-    },
+    summary: { text: 'Four centuries of mining in the mountains above Aikawa, where the hillside was split open by hand.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: null,
     activities: [],
   },
@@ -176,10 +185,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: SHUKUNEGI.lat,
     lng: SHUKUNEGI.lng,
     labelSide: 'below',
-    intro: {
-      en: 'A village of shipbuilders’ houses packed into a small cove, their walls of weathered boards.',
-      ja: '小さな入り江に船大工の家が建ち並ぶ集落。',
-    },
+    summary: { text: 'A village of shipbuilders’ houses packed into a small cove, their walls of weathered boards.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: null,
     activities: [],
   },
@@ -190,10 +201,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: 38.305,
     lng: 138.47,
     labelSide: 'left',
-    intro: {
-      en: 'A great rounded rock on the north coast, covered in yellow day lilies in early summer.',
-      ja: '北の海岸にそびえる大きな岩。初夏にはカンゾウの花に覆われます。',
-    },
+    summary: { text: 'A great rounded rock on the north coast, covered in yellow day lilies in early summer.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: null,
     activities: [],
   },
@@ -204,10 +217,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: 38.142,
     lng: 138.4,
     labelSide: 'left',
-    intro: {
-      en: 'Open grassland along the ridge of Osado, with the whole island below.',
-      ja: '大佐渡の尾根に広がる草原。島全体を見渡せます。',
-    },
+    summary: { text: 'Open grassland along the ridge of Osado, with the whole island below.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: null,
     activities: [],
   },
@@ -218,10 +233,12 @@ export const DISCOVERY_PREVIEW: readonly DiscoveryPlace[] = [
     lat: 37.818,
     lng: 138.29,
     labelSide: 'right',
-    intro: {
-      en: 'Round wooden tub boats, once used to gather shellfish among the rocks of the harbour.',
-      ja: '岩場で貝を採るために使われてきた、丸い木のたらい舟。',
-    },
+    summary: { text: 'Round wooden tub boats, once used to gather shellfish among the rocks of the harbour.', locale: 'en', fallback: false },
+    locality: null,
+    practical: null,
+    officialUrl: null,
+    sources: [],
+    sampleNote: SAMPLE_NOTE,
     image: null,
     activities: [],
   },

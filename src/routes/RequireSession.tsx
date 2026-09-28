@@ -8,7 +8,7 @@ export default function RequireSession() {
   const { session, loading } = useAuth()
 
   if (loading) {
-    return <LoadingScreen label="Restoring your session" />
+    return <LoadingScreen label="Restoring your session" tone="paper" />
   }
 
   if (!session) {

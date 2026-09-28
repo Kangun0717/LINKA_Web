@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 
 import CountryMap, { type AreaWash } from '@/features/world/components/CountryMap'
 import DiscoveryCard from '@/features/world/components/DiscoveryCard'
 import DiscoveryMark from '@/features/world/components/DiscoveryMark'
+import FontPrimer from '@/features/world/components/FontPrimer'
 import LocalMap, { type Pocket } from '@/features/world/components/LocalMap'
 import MapLabel from '@/features/world/components/MapLabel'
 import PlaceCard from '@/features/world/components/PlaceCard'
@@ -22,7 +23,7 @@ import {
   type WorldPath,
   warmLocalMap,
 } from '@/features/world/geo/atlas'
-import { boundsPoints, fitPoints, smoothstep, type View } from '@/features/world/geo/camera'
+import { boundsPoints, fitPoints, flightTransform, smoothstep, type View } from '@/features/world/geo/camera'
 import { kmToPx, variantOf } from '@/features/world/geo/draw'
 import { frameWorld, landPaths, project } from '@/features/world/geo/orthographic'
 import {
@@ -30,11 +31,16 @@ import {
   type DiscoveryPlace,
   type WorldSnapshot,
 } from '@/features/world/model/types'
+import { regionSecondName } from '@/features/world/regionName'
+import { isolateIds } from '@/features/world/isolateIds'
 import { useArrival } from '@/features/world/useArrival'
 import { useCamera } from '@/features/world/useCamera'
-import { formatTouchDate, WORLD_COPY } from '@/features/world/worldCopy'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/cn'
+import { useLocale } from '@/lib/i18n/LocaleContext'
+import { useMessages } from '@/lib/i18n/useMessages'
+import { formatCalendarDate } from '@/lib/i18n/locale'
+import type { Messages } from '@/lib/i18n/messages'
 
 type MyWorldProps = {
   snapshot: WorldSnapshot
@@ -52,6 +58,8 @@ type MyWorldProps = {
    * source for these yet and passes none; the dev preview passes samples.
    */
   discovery?: readonly DiscoveryPlace[]
+  /** A place whose card is open on arrival (e.g. from another place's card). */
+  openPlaceId?: string | null
 }
 
 const NO_PATH: WorldPath = []
@@ -87,9 +95,12 @@ export default function MyWorld({
   onEnter = noop,
   onBack = noop,
   discovery = NO_DISCOVERY,
+  openPlaceId = null,
 }: MyWorldProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const { width, height } = useElementSize(stageRef)
+  const copy = useMessages()
+  const { locale } = useLocale()
 
   const location = useMemo(() => locate(path), [path])
   const levelKey = path.join('/')
@@ -101,13 +112,16 @@ export default function MyWorld({
   /** `null`: the user has not chosen yet. `''`: they chose nothing. */
   const [chosenId, setChosenId] = useState<string | null>(null)
   /** A discoverable place whose card is open. */
-  const [discoveryId, setDiscoveryId] = useState<string | null>(null)
+  const [discoveryId, setDiscoveryId] = useState<string | null>(openPlaceId)
+  /** A visited place whose full sheet was opened from its Memory Card. */
+  const [sheetId, setSheetId] = useState<string | null>(null)
   // Changing level puts any open card away.
   const [cardLevel, setCardLevel] = useState(levelKey)
   if (cardLevel !== levelKey) {
     setCardLevel(levelKey)
     setChosenId('')
     setDiscoveryId(null)
+    setSheetId(null)
   }
 
   // The last local map entered stays drawn while the camera leaves it.
@@ -141,7 +155,79 @@ export default function MyWorld({
     return { ...fitPoints(location.area.map.coast, localBox(width, height)), depth: 2 }
   }, [location, worldFrame, width, height])
 
-  const { view, moving } = useCamera(target, levelKey)
+  const { view, moving, flight, startFlying } = useCamera(target, levelKey)
+  const layerRef = useRef<HTMLDivElement>(null)
+  const ghostRef = useRef<HTMLDivElement>(null)
+
+  // A flight, in three steps and no per-frame rendering:
+  //   snap: copy the map exactly as it looks now into a static ghost layer;
+  //   fly:  the destination is rendered once; the ghost zooms toward it and
+  //         fades, the destination zooms in from where it was and appears —
+  //         transform and opacity only, which the browser composites on the GPU;
+  //   rest: the ghost is dropped and the live map is left exactly as drawn.
+  useLayoutEffect(() => {
+    const layer = layerRef.current
+    const ghost = ghostRef.current
+    if (!flight || !layer || !ghost) return
+
+    if (flight.phase === 'snap') {
+      // Only the drawn map flies. Marks, names and photos are UI, not geography:
+      // scaled with the map they would balloon, so they wait for the arrival.
+      const stage = stageRef.current
+      if (!stage) {
+        startFlying()
+        return
+      }
+      const copy = stage.cloneNode(true) as HTMLElement
+      isolateIds(copy, `-g${flight.id}`)
+      // WebKit re-evaluates SVG filters whenever a layer's scale changes, so
+      // the copy flies without them (the pencil wobble and watercolour edge
+      // are not visible at speed); the destination is drawn with them at rest.
+      for (const element of copy.querySelectorAll('[filter]')) element.removeAttribute('filter')
+      // The copy is a picture: nothing in it can be focused, read out or tapped.
+      copy.removeAttribute('id')
+      copy.setAttribute('inert', '')
+      ghost.replaceChildren(copy)
+      startFlying()
+      return
+    }
+
+    const { k, tx, ty } = flightTransform(flight.from, flight.to, width, height)
+    const d = flight.duration
+    const curve = 'cubic-bezier(0.45, 0, 0.2, 1)'
+    const copy = ghost.firstElementChild as HTMLElement | null
+
+    layer.style.transition = 'none'
+    layer.style.transformOrigin = '0 0'
+    layer.style.transform = `translate3d(${(-tx / k).toFixed(2)}px, ${(-ty / k).toFixed(2)}px, 0) scale(${(1 / k).toFixed(5)})`
+    layer.style.opacity = '0'
+    layer.style.willChange = 'transform, opacity'
+    layer.dataset.flying = ''
+    if (copy) {
+      copy.style.transformOrigin = '0 0'
+      copy.style.willChange = 'transform, opacity'
+    }
+    void layer.offsetWidth // commit the start state before transitioning
+
+    layer.style.transition = `transform ${d}ms ${curve}, opacity ${Math.round(d * 0.5)}ms ease ${Math.round(d * 0.3)}ms`
+    layer.style.transform = 'translate3d(0, 0, 0) scale(1)'
+    layer.style.opacity = '1'
+    if (copy) {
+      copy.style.transition = `transform ${d}ms ${curve}, opacity ${Math.round(d * 0.5)}ms ease ${Math.round(d * 0.35)}ms`
+      copy.style.transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${k.toFixed(5)})`
+      copy.style.opacity = '0'
+    }
+
+    return () => {
+      ghost.replaceChildren()
+      layer.style.transition = ''
+      layer.style.transform = ''
+      layer.style.transformOrigin = ''
+      layer.style.opacity = ''
+      layer.style.willChange = ''
+      delete layer.dataset.flying
+    }
+  }, [flight, startFlying, width, height])
 
   // Looking at a country, draw its local maps' detail in idle time, so going
   // down into one never has to stop and generate an island mid-journey.
@@ -159,8 +245,8 @@ export default function MyWorld({
   const globeOpacity = 1 - smoothstep(0.45, 0.9, depth)
   const isGlobeDrawn = view !== null && globeOpacity > 0
   const land = useMemo(
-    () => (isGlobeDrawn && view ? landPaths(view, { width, height }, moving) : null),
-    [isGlobeDrawn, view, width, height, moving],
+    () => (isGlobeDrawn && view ? landPaths(view, { width, height }) : null),
+    [isGlobeDrawn, view, width, height],
   )
   const atmosphere = 1 - smoothstep(0.08, 0.6, depth)
   const countryOpacity = smoothstep(0.35, 0.85, depth) * (1 - smoothstep(1.3, 1.85, depth))
@@ -277,6 +363,12 @@ export default function MyWorld({
   const [discoveryCard, setDiscoveryCard] = useState(openDiscovery)
   if (openDiscovery && openDiscovery !== discoveryCard) setDiscoveryCard(openDiscovery)
 
+  const visitedSheet = useMemo(() => {
+    const place = sheetId ? places.find(({ id }) => id === sheetId) : undefined
+    const details = sheetId ? discovery.find(({ id }) => id === sheetId) : undefined
+    return place && details ? { place, details } : null
+  }, [sheetId, places, discovery])
+
   // The newest place keeps a quiet name once its card has folded away.
   const arrivalMark = marks.find(({ place }) => place.id === arrivingId) ?? null
   const isLabelShown =
@@ -365,185 +457,195 @@ export default function MyWorld({
         className="absolute inset-0 bg-[radial-gradient(70%_32%_at_86%_4%,rgba(247,233,189,0.42)_0%,rgba(247,233,189,0)_100%),linear-gradient(to_bottom,rgba(232,241,245,0.9)_0%,rgba(232,241,245,0)_42%)]"
       />
 
-      <div
-        ref={stageRef}
-        role="img"
-        aria-label={stageLabel(location, isQuiet)}
-        className="absolute inset-0"
-        onClick={handleStageClick}
-      >
-        {view && land && (
-          <div className="absolute inset-0" style={{ opacity: globeOpacity }}>
-            <WorldGlobe
+      {/* Everything that is the map — it is what a flight zooms. */}
+      <div ref={layerRef} className="absolute inset-0">
+        <div
+          ref={stageRef}
+          data-stage
+          role="img"
+          aria-label={stageLabel(location, isQuiet, copy)}
+          className="absolute inset-0"
+          onClick={handleStageClick}
+        >
+          {view && land && (
+            <div className="absolute inset-0" style={{ opacity: globeOpacity }}>
+              <WorldGlobe
+                moving={moving}
+                width={width}
+                height={height}
+                frame={view}
+                land={land}
+                blooms={blooms}
+                atmosphere={atmosphere}
+              />
+            </div>
+          )}
+
+          {view && countryOpacity > 0 && (
+            <CountryMap
               width={width}
               height={height}
               frame={view}
-              land={land}
-              blooms={blooms}
-              atmosphere={atmosphere}
+              washes={washes}
+              opacity={countryOpacity}
+              moving={moving}
             />
-          </div>
-        )}
+          )}
 
-        {view && countryOpacity > 0 && (
-          <CountryMap
-            width={width}
-            height={height}
-            frame={view}
-            washes={washes}
-            opacity={countryOpacity}
-            moving={moving}
-          />
-        )}
-
-        {view && shownArea && paper > 0 && (
-          <LocalMap
-            width={width}
-            height={height}
-            frame={view}
-            map={shownArea.map}
-            pockets={pockets}
-            paper={paper}
-            ink={ink}
-            resolved={isResolved}
-          />
-        )}
-      </div>
-
-      {marks.map(({ place, at }) => {
-        const isArriving = place.id === arrivingId
-        const isShown = !isArriving || phase !== 'rest'
-        const isSelected = place.id === selectedId && selectedMark !== null
-
-        return (
-          <button
-            key={place.id}
-            type="button"
-            aria-pressed={isSelected}
-            aria-label={WORLD_COPY.a11y.place(
-              place.name,
-              place.locality,
-              formatTouchDate(place.firstTouchedAt),
-            )}
-            onClick={() => chooseTouched(isSelected ? null : place.id)}
-            style={{ left: at.x, top: at.y }}
-            className={cn(
-              'absolute flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full',
-              'transition-[opacity,scale] duration-700 ease-calm outline-none focus-visible:ring-1 focus-visible:ring-graphite/30',
-              isShown ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
-            )}
-          >
-            <TouchMark
-              recent={place.id === recentPlaceId && (!isArriving || phase === 'settled')}
-              selected={isSelected}
-              arriving={isArriving && isShown}
-              signed={location.level === 2 && depth > 1.9}
+          {view && shownArea && paper > 0 && (
+            <LocalMap
+              width={width}
+              height={height}
+              frame={view}
+              map={shownArea.map}
+              pockets={pockets}
+              paper={paper}
+              ink={ink}
+              resolved={isResolved}
             />
-          </button>
-        )
-      })}
+          )}
+        </div>
 
-      {discoverable.map(({ place, at }) => {
-        const isOpen = place.id === discoveryId && openDiscovery !== null
-        return (
-          <button
-            key={place.id}
-            type="button"
-            aria-pressed={isOpen}
-            aria-label={WORLD_COPY.a11y.discoverable(place.name, place.nameLatin)}
-            onClick={() => chooseDiscovery(isOpen ? null : place.id)}
-            style={{ left: at.x, top: at.y }}
-            className={cn(
-              'absolute flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full',
-              'transition-opacity duration-700 ease-calm outline-none focus-visible:ring-1 focus-visible:ring-graphite/30',
-              isResolved ? 'opacity-100 delay-300' : 'pointer-events-none opacity-0',
-            )}
-          >
-            <DiscoveryMark selected={isOpen} />
-          </button>
-        )
-      })}
+        {marks.map(({ place, at }) => {
+          const isArriving = place.id === arrivingId
+          const isShown = !isArriving || phase !== 'rest'
+          const isSelected = place.id === selectedId && selectedMark !== null
 
-      {countryLabels.map(({ country, anchor, touched }) => (
-        <MapLabel
-          key={country.id}
-          name={country.name}
-          nameLatin={country.nameLatin}
-          anchor={anchor}
-          side="below"
-          gap={0}
-          shown={areCountryLabelsShown}
-          onEnter={() => onEnter([country.id])}
-          enterLabel={WORLD_COPY.a11y.enter(country.name, country.nameLatin)}
-          delayMs={300}
-          tone={touched ? 'lived' : 'quiet'}
-        />
-      ))}
+          return (
+            <button
+              key={place.id}
+              type="button"
+              aria-pressed={isSelected}
+              aria-label={copy.a11y.place(
+                place.name,
+                place.locality,
+                formatCalendarDate(place.firstTouchedOn ?? place.firstTouchedAt, locale),
+              )}
+              onClick={() => chooseTouched(isSelected ? null : place.id)}
+              style={{ left: at.x, top: at.y }}
+              className={cn(
+                'absolute flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full',
+                'transition-[opacity,scale] duration-700 ease-calm outline-none focus-visible:ring-1 focus-visible:ring-graphite/30',
+                isShown ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
+              )}
+            >
+              <TouchMark
+                recent={place.id === recentPlaceId && (!isArriving || phase === 'settled')}
+                selected={isSelected}
+                arriving={isArriving && isShown}
+                signed={location.level === 2 && depth > 1.9}
+              />
+            </button>
+          )
+        })}
 
-      {location.level === 1 &&
-        view &&
-        countryAreas.map(({ country, area, touched }) => {
-          const wash = washes.find((w) => w.id === area.id)
-          const anchor = wash ?? project(view, area.reveal.centre.lng, area.reveal.centre.lat)
-          const gap = wash
-            ? area.labelSide === 'below'
-              ? wash.r * 0.62
-              : wash.r * 0.72
-            : 12
+        {discoverable.map(({ place, at }) => {
+          const isOpen = place.id === discoveryId && openDiscovery !== null
+          return (
+            <button
+              key={place.id}
+              type="button"
+              aria-pressed={isOpen}
+              aria-label={copy.a11y.discoverable(place.name, place.nameLatin)}
+              onClick={() => chooseDiscovery(isOpen ? null : place.id)}
+              style={{ left: at.x, top: at.y }}
+              className={cn(
+                'absolute flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full',
+                'transition-opacity duration-700 ease-calm outline-none focus-visible:ring-1 focus-visible:ring-graphite/30',
+                isResolved ? 'opacity-100 delay-300' : 'pointer-events-none opacity-0',
+              )}
+            >
+              <DiscoveryMark selected={isOpen} />
+            </button>
+          )
+        })}
+
+        {countryLabels.map(({ country, anchor, touched }) => (
+          <MapLabel
+            key={country.id}
+            name={country.name}
+            nameLatin={regionSecondName(country, copy)}
+            anchor={anchor}
+            side="below"
+            gap={0}
+            shown={areCountryLabelsShown}
+            onEnter={() => onEnter([country.id])}
+            enterLabel={copy.a11y.enter(country.name, country.nameLatin)}
+            delayMs={300}
+            tone={touched ? 'lived' : 'quiet'}
+          />
+        ))}
+
+        {location.level === 1 &&
+          view &&
+          countryAreas.map(({ country, area, touched }) => {
+            const wash = washes.find((w) => w.id === area.id)
+            const anchor = wash ?? project(view, area.reveal.centre.lng, area.reveal.centre.lat)
+            const gap = wash
+              ? area.labelSide === 'below'
+                ? wash.r * 0.62
+                : wash.r * 0.72
+              : 12
+            return (
+              <MapLabel
+                key={area.id}
+                name={area.name}
+                nameLatin={regionSecondName(area, copy)}
+                anchor={anchor}
+                side={area.labelSide}
+                gap={gap}
+                shown={isSettled}
+                onEnter={area.map ? () => onEnter([country.id, area.id]) : undefined}
+                enterLabel={copy.a11y.enter(area.name, area.nameLatin)}
+                delayMs={200}
+                tone={touched ? 'lived' : 'quiet'}
+              />
+            )
+          })}
+
+        {localLabels.map((label) => {
+          const isOpen =
+            (label.touched ? selectedMark?.place.id : openDiscovery?.id) === label.id
           return (
             <MapLabel
-              key={area.id}
-              name={area.name}
-              nameLatin={area.nameLatin}
-              anchor={anchor}
-              side={area.labelSide}
-              gap={gap}
-              shown={isSettled}
-              onEnter={area.map ? () => onEnter([country.id, area.id]) : undefined}
-              enterLabel={WORLD_COPY.a11y.enter(area.name, area.nameLatin)}
-              delayMs={200}
-              tone={touched ? 'lived' : 'quiet'}
+              key={label.id}
+              name={label.name}
+              nameLatin={label.nameLatin}
+              anchor={label.at}
+              side={label.side}
+              // A touched mark wears its ))) to the right; the name stands clear of it.
+              gap={label.side === 'below' ? 12 : label.touched && label.side === 'right' ? 30 : 15}
+              shown={isResolved && !isOpen}
+              delayMs={label.touched ? 1500 : 700}
+              tone={label.touched ? 'lived' : 'quiet'}
             />
           )
         })}
 
-      {localLabels.map((label) => {
-        const isOpen =
-          (label.touched ? selectedMark?.place.id : openDiscovery?.id) === label.id
-        return (
-          <MapLabel
-            key={label.id}
-            name={label.name}
-            nameLatin={label.nameLatin}
-            anchor={label.at}
-            side={label.side}
-            // A touched mark wears its ))) to the right; the name stands clear of it.
-            gap={label.side === 'below' ? 12 : label.touched && label.side === 'right' ? 30 : 15}
-            shown={isResolved && !isOpen}
-            delayMs={label.touched ? 1500 : 700}
-            tone={label.touched ? 'lived' : 'quiet'}
-          />
-        )
-      })}
+        {location.level === 2 &&
+          marks
+            .filter(({ place, area }) => place.photo && area?.id === shownArea?.id)
+            .map(({ place, at }) => (
+              <PhotoFragment
+                key={place.id}
+                photo={place.photo!}
+                anchor={at}
+                // Rests on the side away from the place's name.
+                side={labelSides.get(place.id) === 'left' ? 'right' : 'left'}
+                seed={place.id}
+                shown={isResolved}
+                label={copy.a11y.photo(place.name)}
+                onOpen={() => chooseTouched(place.id)}
+              />
+            ))}
 
-      {location.level === 2 &&
-        marks
-          .filter(({ place, area }) => place.photo && area?.id === shownArea?.id)
-          .map(({ place, at }) => (
-            <PhotoFragment
-              key={place.id}
-              photo={place.photo!}
-              anchor={at}
-              // Rests on the side away from the place's name.
-              side={labelSides.get(place.id) === 'left' ? 'right' : 'left'}
-              seed={place.id}
-              shown={isResolved}
-              label={WORLD_COPY.a11y.photo(place.name)}
-              onOpen={() => chooseTouched(place.id)}
-            />
-          ))}
+      </div>
+
+      {/* The map as it was, copied at the start of a flight and zoomed away on the GPU. */}
+      <div ref={ghostRef} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" />
 
       <WorldHeader location={location} isQuiet={isQuiet} onBack={onBack} />
+      <FontPrimer />
 
       {arrivalMark && (
         <PlaceLabel
@@ -559,6 +661,8 @@ export default function MyWorld({
           place={discoveryCard}
           shown={openDiscovery !== null}
           onClose={() => chooseDiscovery(null)}
+          others={discovery}
+          onOpenOther={(id) => chooseDiscovery(id)}
         />
       )}
 
@@ -567,7 +671,19 @@ export default function MyWorld({
           place={cardMark.place}
           anchor={cardMark.at}
           stage={{ width, height }}
-          shown={selectedMark !== null}
+          shown={selectedMark !== null && sheetId === null}
+          onOpen={
+            discovery.some(({ id }) => id === cardMark.place.id) ? () => setSheetId(cardMark.place.id) : undefined
+          }
+        />
+      )}
+
+      {visitedSheet && (
+        <DiscoveryCard
+          place={visitedSheet.details}
+          visitedOn={visitedSheet.place.firstTouchedOn ?? visitedSheet.place.firstTouchedAt.slice(0, 10)}
+          shown
+          onClose={() => setSheetId(null)}
         />
       )}
     </div>
@@ -638,10 +754,10 @@ function sideFor(
   return x > width * 0.62 ? 'left' : 'right'
 }
 
-function stageLabel(location: ReturnType<typeof locate>, isQuiet: boolean): string {
+function stageLabel(location: ReturnType<typeof locate>, isQuiet: boolean, copy: Messages): string {
   if (location.level === 1) {
-    return WORLD_COPY.a11y.country(location.country.name, location.country.nameLatin)
+    return copy.a11y.country(location.country.name, location.country.nameLatin)
   }
-  if (location.level === 2) return WORLD_COPY.a11y.localMap(location.area.name, location.area.nameLatin)
-  return isQuiet ? WORLD_COPY.a11y.quietWorld : WORLD_COPY.a11y.world
+  if (location.level === 2) return copy.a11y.localMap(location.area.name, location.area.nameLatin)
+  return isQuiet ? copy.a11y.quietWorld : copy.a11y.world
 }

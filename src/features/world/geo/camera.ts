@@ -131,3 +131,25 @@ export function smoothstep(a: number, b: number, value: number): number {
   const t = clamp01((value - a) / (b - a))
   return t * t * (3 - 2 * t)
 }
+
+/**
+ * The 2D transform that carries the map as drawn in `from` onto where the
+ * same geography lies in `to`: `x' = k·x + tx`, `y' = k·y + ty` (origin 0 0).
+ *
+ * It pins the destination's centre — where it is in `from`, where it will be
+ * in `to` — and scales by the change in the sphere's radius. On a globe that
+ * is exact at that point and close around it, which is all the eye follows
+ * during a quick zoom; the destination itself is then drawn exactly.
+ */
+export function flightTransform(from: View, to: View, width: number, height: number): { k: number; tx: number; ty: number } {
+  const deeper = to.depth >= from.depth
+  // Pin the deeper view's centre: the place being zoomed into (or out of).
+  const focus = deeper ? to : from
+  const inFrom = project(from, focus.lng0, focus.lat0)
+  const inTo = project(to, focus.lng0, focus.lat0)
+  const k = to.r / from.r
+  if (!inFrom.visible || !inTo.visible) {
+    return { k, tx: width / 2 - (k * width) / 2, ty: height / 2 - (k * height) / 2 }
+  }
+  return { k, tx: inTo.x - k * inFrom.x, ty: inTo.y - k * inFrom.y }
+}

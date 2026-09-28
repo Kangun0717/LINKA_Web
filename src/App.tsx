@@ -2,23 +2,42 @@ import { Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import AuthProvider from '@/features/auth/AuthProvider'
-import EmailScreen from '@/features/auth/screens/EmailScreen'
-import VerifyScreen from '@/features/auth/screens/VerifyScreen'
 import DoorExperience from '@/features/door/DoorExperience'
 import BrandRevealScreen from '@/features/entry/screens/BrandRevealScreen'
 import EntryScreen from '@/features/entry/screens/EntryScreen'
 import ProfileProvider from '@/features/onboarding/ProfileProvider'
+import LocaleProvider from '@/lib/i18n/LocaleProvider'
 import GuestOnly from '@/routes/GuestOnly'
-import OnboardingRoute from '@/routes/OnboardingRoute'
-import RequireProfile from '@/routes/RequireProfile'
+import MemberOrGuest from '@/routes/MemberOrGuest'
+import SurfaceSync from '@/routes/SurfaceSync'
+import RequirePassword from '@/routes/RequirePassword'
 import RequireSession from '@/routes/RequireSession'
-import { HomeScreen, MyWorldPreviewScreen } from '@/routes/lazyScreens'
+import {
+  AuthEntryScreen,
+  EmergencyDemoScreen,
+  ForgotPasswordScreen,
+  OnboardingRoute,
+  PasswordRoute,
+  preloadAccount,
+  ResetPasswordScreen,
+  SignInScreen,
+  SignUpScreen,
+  VerifyScreen,
+  HomeScreen,
+  MeScreen,
+  MomentsScreen,
+  MyWorldPreviewScreen,
+  SuggestScreen,
+  TouchScreen,
+} from '@/routes/lazyScreens'
 
 /** The world's own surface while its chunk arrives — never a dark flash. */
 const worldFallback = <div className="h-dvh bg-canvas" />
+const pageFallback = <div className="h-dvh bg-paper-lit" />
 
 /**
- * Real-world touch → door → LINKA → email OTP → profile → your own world.
+ * Real-world touch → door → LINKA → create account (code → password) or sign
+ * in (password) → profile → your own world.
  *
  * The Door is the universal entrance and therefore sits outside the guards: it
  * must render for signed-out and signed-in visitors alike. It decides nothing
@@ -29,52 +48,120 @@ export default function App() {
   // Whatever the entrance, fetch My World once the first screen has settled.
   useEffect(() => {
     const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1200))
-    idle(() => void HomeScreen.preload())
+    idle(() => {
+      void preloadAccount()
+      void HomeScreen.preload()
+      void MomentsScreen.preload()
+      void MeScreen.preload()
+    })
   }, [])
 
   return (
     <AuthProvider>
       <ProfileProvider>
-        <Routes>
-          <Route path="/" element={<DoorExperience />} />
+        <LocaleProvider>
+          <SurfaceSync />
+          <Suspense fallback={pageFallback}>
+            <Routes>
+              <Route path="/" element={<DoorExperience />} />
 
-          <Route element={<GuestOnly />}>
-            <Route path="/auth" element={<EmailScreen />} />
-            <Route path="/auth/verify" element={<VerifyScreen />} />
-          </Route>
-
-          <Route element={<RequireSession />}>
-            <Route path="/onboarding" element={<OnboardingRoute />} />
-
-            <Route element={<RequireProfile />}>
+              {/* A physical NFC tag's URL. Outside the guards: it shows the place
+                  first and handles its own sign-in detour and return. */}
               <Route
-                path="/home"
+                path="/t/:publicId"
                 element={
-                  <Suspense fallback={worldFallback}>
-                    <HomeScreen />
+                  <Suspense fallback={<div className="h-dvh bg-paper" />}>
+                    <TouchScreen />
                   </Suspense>
                 }
               />
-            </Route>
-          </Route>
 
-          {/* Sprint 1A entrance, kept reachable for visual comparison only. */}
-          <Route path="/legacy/entry" element={<EntryScreen />} />
-          <Route path="/legacy/reveal" element={<BrandRevealScreen />} />
+              <Route element={<GuestOnly />}>
+                <Route path="/auth" element={<AuthEntryScreen />} />
+                <Route path="/auth/signup" element={<SignUpScreen />} />
+                <Route path="/auth/verify" element={<VerifyScreen />} />
+                <Route path="/auth/signin" element={<SignInScreen />} />
+                <Route path="/auth/forgot" element={<ForgotPasswordScreen />} />
+              </Route>
 
-          {MyWorldPreviewScreen && (
-            <Route
-              path="/preview/my-world"
-              element={
-                <Suspense fallback={worldFallback}>
-                  <MyWorldPreviewScreen />
-                </Suspense>
-              }
-            />
-          )}
+              {/* The recovery link's session is read on arrival, so no guard may run first. */}
+              <Route path="/auth/reset" element={<ResetPasswordScreen />} />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+              <Route element={<RequireSession />}>
+                <Route path="/auth/password" element={<PasswordRoute />} />
+
+                <Route element={<RequirePassword />}>
+                  <Route path="/onboarding" element={<OnboardingRoute />} />
+
+                </Route>
+              </Route>
+
+              {/* Open to guests too: the public map, and Moments / Me (which gate a guest). */}
+              <Route element={<MemberOrGuest />}>
+                <Route
+                  path="/home"
+                  element={
+                    <Suspense fallback={worldFallback}>
+                      <HomeScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/moments"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <MomentsScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/me"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <MeScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/me/suggest"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <SuggestScreen />
+                    </Suspense>
+                  }
+                />
+              </Route>
+
+              {/* Sprint 1A entrance, kept reachable for visual comparison only. */}
+              <Route path="/legacy/entry" element={<EntryScreen />} />
+              <Route path="/legacy/reveal" element={<BrandRevealScreen />} />
+
+              {EmergencyDemoScreen && (
+                <Route
+                  path="/preview/emergency"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <EmergencyDemoScreen />
+                    </Suspense>
+                  }
+                />
+              )}
+
+              {MyWorldPreviewScreen && (
+                <Route
+                  path="/preview/my-world"
+                  element={
+                    <Suspense fallback={worldFallback}>
+                      <MyWorldPreviewScreen />
+                    </Suspense>
+                  }
+                />
+              )}
+
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </LocaleProvider>
       </ProfileProvider>
     </AuthProvider>
   )

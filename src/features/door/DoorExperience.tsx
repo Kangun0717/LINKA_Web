@@ -23,6 +23,12 @@ type DoorExperienceProps = {
    * `nfc` signal. The entrance then begins already touched, skipping the wait.
    */
   initialSignal?: TouchSignal
+  /**
+   * Replaces the Door's own routing when it is played as part of another
+   * screen — the NFC Touch flow, which shows the touched place next. The Door
+   * then decides nothing about sessions; that screen does.
+   */
+  onFinish?: () => void
 }
 
 /**
@@ -33,7 +39,7 @@ type DoorExperienceProps = {
  * decided entirely by the existing `nextStepFor`, so authentication and
  * onboarding routing stay exactly where they already live.
  */
-export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
+export default function DoorExperience({ initialSignal, onFinish }: DoorExperienceProps) {
   const navigate = useNavigate()
   const { session, loading: authLoading } = useAuth()
   const { profile, loading: profileLoading } = useProfileContext()
@@ -45,26 +51,43 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
    * record that the door has been seen.
    */
   const [isResumingAuth] = useState(
-    () => !isReplayRequested() && doorSession.isReturningFromAuth(),
+    () => !onFinish && !isReplayRequested() && doorSession.isReturningFromAuth(),
   )
 
   // The flag protects a single redirect and is spent either way.
-  useEffect(() => doorSession.clear(), [])
+  useEffect(() => {
+    if (!onFinish) doorSession.clear()
+  }, [onFinish])
 
-  const handleComplete = useCallback(() => {
+  /*
+   * The entrance can finish before the stored session has been restored (the
+   * Supabase client loads while the Door plays). Leaving then would send a
+   * signed-in visitor to sign-in, so it waits — on paper — until it knows.
+   */
+  const [isFinished, setIsFinished] = useState(false)
+  const isDecided = !authLoading && (!session || !profileLoading)
+  const handleComplete = useCallback(() => (onFinish ? onFinish() : setIsFinished(true)), [onFinish])
+
+  useEffect(() => {
+    if (!isFinished || !isDecided) return
+
     if (session) {
-      navigate(nextStepFor(profile), { replace: true })
+      navigate(nextStepFor(session.user, profile), { replace: true })
       return
     }
 
     doorSession.beginAuthDetour()
     navigate('/auth', { replace: true })
-  }, [session, profile, navigate])
+  }, [isFinished, isDecided, session, profile, navigate])
 
   const { state, started, reducedMotion, start, skip } = useDoorSequence({
     initialSignal,
     onComplete: handleComplete,
   })
+
+  if (isFinished && !isDecided) {
+    return <LoadingScreen label={DOOR_COPY.a11y.opening} tone="paper" />
+  }
 
   if (isResumingAuth) {
     if (authLoading) {
@@ -79,7 +102,7 @@ export default function DoorExperience({ initialSignal }: DoorExperienceProps) {
       return <LoadingScreen label={DOOR_COPY.a11y.opening} tone="paper" />
     }
 
-    return <Navigate to={nextStepFor(profile)} replace />
+    return <Navigate to={nextStepFor(session.user, profile)} replace />
   }
 
   const isPastRoom = isAtOrAfter(state, 'brand')

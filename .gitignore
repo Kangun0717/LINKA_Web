@@ -33,3 +33,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Supabase CLI local state (project link, versions)
+supabase/.temp/

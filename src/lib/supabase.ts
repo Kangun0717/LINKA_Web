@@ -1,25 +1,27 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { env } from '@/lib/env'
 import type { Database } from '@/types/database.types'
 
 export type LinkaSupabaseClient = SupabaseClient<Database>
 
-let client: LinkaSupabaseClient | null = null
+let client: Promise<LinkaSupabaseClient> | null = null
 
 /**
- * Lazily created singleton Supabase browser client.
+ * The Supabase browser client, loaded on first use.
  *
- * It is created on first use rather than at module load so that screens which
- * do not talk to Supabase keep rendering even before `.env` is configured.
+ * supabase-js is about half of what the app downloads before first paint, and
+ * the Door draws nothing from it. So it lives in its own chunk: `AuthProvider`
+ * asks for it as soon as the first screen has rendered, and it arrives while
+ * the Door plays. Only the type is imported statically — that is erased.
  *
- * Session persistence is left on Supabase's browser defaults (localStorage +
- * auto refresh), which is what lets a returning user skip the OTP step.
+ * Session persistence stays on Supabase's browser defaults (localStorage +
+ * auto refresh), which is what lets a returning user skip signing in.
  */
-export function getSupabase(): LinkaSupabaseClient {
-  if (!client) {
-    client = createClient<Database>(env.supabaseUrl(), env.supabasePublishableKey())
-  }
+export function getSupabase(): Promise<LinkaSupabaseClient> {
+  client ??= import('@supabase/supabase-js').then(({ createClient }) =>
+    createClient<Database>(env.supabaseUrl(), env.supabasePublishableKey()),
+  )
 
   return client
 }

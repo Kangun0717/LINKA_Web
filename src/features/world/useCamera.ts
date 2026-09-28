@@ -1,59 +1,72 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { interpolate, moveDuration, type View } from '@/features/world/geo/camera'
+import { moveDuration, type View } from '@/features/world/geo/camera'
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 
-type Journey = { from: View; to: View }
+/**
+ * A move between levels.
+ *
+ *   snap — the old view is still on screen, for exactly one commit, so the
+ *          map can be copied as it looks (MyWorld does this in a layout effect)
+ *   fly  — the destination is rendered once, and the browser animates only
+ *          transform and opacity between the copy and it
+ */
+export type Flight = { id: number; from: View; to: View; duration: number; phase: 'snap' | 'fly' }
 
 /**
  * The camera, moving only when the user moves it.
  *
- * `target` is where the view should rest; `level` names which rung of the
- * ladder that is. A change of level is a journey and is animated. Anything
- * else — the first measurement, a resize — simply places the camera, because
- * the world never moves by itself. With reduced motion every journey is a cut.
+ * It used to interpolate a new View every animation frame, which re-projected
+ * every coastline and re-rasterised every watercolour filter sixty times a
+ * second — more than Safari on an iPhone can do (measured: 5–6 frames across
+ * a 2.6 s World → Japan move in WebKit). Now a move renders the map twice in
+ * total — as it was, and as it will be — and the zoom between them is a GPU
+ * transform. The resting map is exactly what it was.
  *
- * `moving` is true for the length of a journey, so the heavier drawing can
- * wait until the camera has arrived.
+ * A change of level is a flight; anything else — the first measurement, a
+ * resize — simply places the camera. With reduced motion every flight is a cut.
  */
-export function useCamera(target: View | null, level: string): { view: View | null; moving: boolean } {
+export function useCamera(
+  target: View | null,
+  level: string,
+): { view: View | null; moving: boolean; flight: Flight | null; startFlying: () => void } {
   const reducedMotion = usePrefersReducedMotion()
   const [view, setView] = useState(target)
   const [placedLevel, setPlacedLevel] = useState(level)
-  const [journey, setJourney] = useState<Journey | null>(null)
+  const [flight, setFlight] = useState<Flight | null>(null)
 
   if (target && level !== placedLevel) {
     setPlacedLevel(level)
-    if (view && !reducedMotion) setJourney({ from: view, to: target })
-    else setView(target)
-  } else if (target && !journey && !sameView(view, target)) {
+    if (view && !reducedMotion) {
+      setFlight({ id: (flight?.id ?? 0) + 1, from: view, to: target, duration: flightDuration(view, target), phase: 'snap' })
+    } else {
+      setView(target)
+    }
+  } else if (target && !flight && !sameView(view, target)) {
     setView(target)
   }
 
+  // Called once the old map has been copied: now draw the destination.
+  const startFlying = useCallback(() => {
+    setFlight((current) => {
+      if (!current || current.phase !== 'snap') return current
+      setView(current.to)
+      return { ...current, phase: 'fly' }
+    })
+  }, [])
+
   useEffect(() => {
-    if (!journey) return
+    if (!flight || flight.phase !== 'fly') return
+    const timer = window.setTimeout(() => setFlight(null), flight.duration + 80)
+    return () => window.clearTimeout(timer)
+  }, [flight])
 
-    const { from, to } = journey
-    const duration = moveDuration(from, to)
-    const start = performance.now()
-    let frame = 0
+  return { view, moving: flight !== null, flight, startFlying }
+}
 
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / duration)
-      if (t < 1) {
-        setView(interpolate(from, to, t))
-        frame = requestAnimationFrame(step)
-      } else {
-        setView(to)
-        setJourney(null)
-      }
-    }
-
-    frame = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(frame)
-  }, [journey])
-
-  return { view, moving: journey !== null }
+/** Shorter than the old frame-by-frame move: a GPU zoom reads as quick, not slow. */
+function flightDuration(from: View, to: View): number {
+  return Math.round(Math.min(1300, moveDuration(from, to) * 0.52))
 }
 
 function sameView(a: View | null, b: View): boolean {

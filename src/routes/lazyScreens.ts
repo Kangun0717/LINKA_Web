@@ -1,4 +1,5 @@
 import { lazyWithPreload } from '@/lib/lazyWithPreload'
+import { getSupabase } from '@/lib/supabase'
 
 /**
  * My World is its own chunk — the globe's land alone is a fifth of the app —
@@ -7,6 +8,39 @@ import { lazyWithPreload } from '@/lib/lazyWithPreload'
  * on idle), so by the time anyone reaches it, it is already there.
  */
 export const HomeScreen = lazyWithPreload(() => import('@/features/home/screens/HomeScreen'))
+
+/**
+ * The NFC Touch screen: only an NFC URL needs it, so the Door's own `/` never
+ * downloads it. For `/t/…` the page starts fetching it next to the entry (see
+ * the preload hint in vite.config.ts) and the first render waits for it, so
+ * the tap never shows a blank fallback.
+ */
+export const TouchScreen = lazyWithPreload(() => import('@/features/touch/TouchScreen'))
+
+const account = () => import('@/routes/accountScreens')
+export const AuthEntryScreen = lazyWithPreload(() => account().then((m) => ({ default: m.AuthEntryScreen })))
+export const SignUpScreen = lazyWithPreload(() => account().then((m) => ({ default: m.SignUpScreen })))
+export const VerifyScreen = lazyWithPreload(() => account().then((m) => ({ default: m.VerifyScreen })))
+export const SignInScreen = lazyWithPreload(() => account().then((m) => ({ default: m.SignInScreen })))
+export const ForgotPasswordScreen = lazyWithPreload(() => account().then((m) => ({ default: m.ForgotPasswordScreen })))
+export const ResetPasswordScreen = lazyWithPreload(() => account().then((m) => ({ default: m.ResetPasswordScreen })))
+export const PasswordRoute = lazyWithPreload(() => account().then((m) => ({ default: m.PasswordRoute })))
+export const OnboardingRoute = lazyWithPreload(() => account().then((m) => ({ default: m.OnboardingRoute })))
+/** Fetch every account screen at once (they share one chunk). */
+export const preloadAccount = () => AuthEntryScreen.preload()
+
+/** The journal and the personal page — reached from the navigation, so fetched on idle with My World. */
+export const MomentsScreen = lazyWithPreload(() => import('@/features/journey/MomentsScreen'))
+export const MeScreen = lazyWithPreload(() => import('@/features/journey/MeScreen'))
+export const SuggestScreen = lazyWithPreload(() => import('@/features/journey/SuggestScreen'))
+
+/**
+ * DEV PREVIEW ONLY — the emergency-notice demonstration on a real place.
+ * Absent from production builds, like the My World preview.
+ */
+export const EmergencyDemoScreen = import.meta.env.DEV
+  ? lazyWithPreload(() => import('@/features/touch/preview/EmergencyDemoScreen'))
+  : null
 
 /**
  * Dev-only design previews. `import.meta.env.DEV` is a build-time constant, so
@@ -27,7 +61,16 @@ export const MyWorldPreviewScreen = import.meta.env.DEV
  * of what made the preview slow to open.
  */
 export function firstRouteReady(pathname: string): Promise<unknown> {
+  // Everywhere but the Door, the first thing drawn depends on the session, so
+  // the auth client starts downloading now rather than after the first render.
+  // The Door draws without it and lets it arrive while the entrance plays.
+  if (pathname !== '/') void getSupabase()
+  // An account screen opened directly must not flash a fallback: wait for its chunk.
+  if (pathname.startsWith('/auth') || pathname.startsWith('/onboarding')) return preloadAccount()
+  if (pathname.startsWith('/t/')) return TouchScreen.preload()
   if (MyWorldPreviewScreen && pathname.startsWith('/preview/')) return MyWorldPreviewScreen.preload()
   if (pathname.startsWith('/home')) void HomeScreen.preload()
+  if (pathname.startsWith('/moments')) void MomentsScreen.preload()
+  if (pathname.startsWith('/me')) void MeScreen.preload()
   return Promise.resolve()
 }

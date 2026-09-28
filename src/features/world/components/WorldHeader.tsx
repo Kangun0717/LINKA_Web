@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 
 import type { WorldLocation } from '@/features/world/geo/atlas'
-import { WORLD_COPY } from '@/features/world/worldCopy'
+import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
+import { regionSecondName } from '@/features/world/regionName'
 import { cn } from '@/lib/cn'
+import { useMessages } from '@/lib/i18n/useMessages'
 
 type WorldHeaderProps = {
   location: WorldLocation
@@ -19,18 +21,20 @@ type WorldHeaderProps = {
  * already doing the moving.
  */
 export default function WorldHeader({ location, isQuiet, onBack }: WorldHeaderProps) {
+  const copy = useMessages()
   const country = location.level === 0 ? null : location.country
   const area = location.level === 2 ? location.area : null
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 px-7 pt-[max(2.25rem,env(safe-area-inset-top))]">
+      <LanguageSwitcher className="absolute right-4 top-[max(1.45rem,calc(env(safe-area-inset-top)-0.8rem))] z-10" />
       <Layer shown={location.level === 0}>
         <h1 className="text-[0.7rem] font-normal uppercase tracking-[0.26em] text-graphite-soft">
-          {WORLD_COPY.title}
+          {copy.world.title}
         </h1>
         {isQuiet && (
           <p className="mt-3 text-[0.8rem] font-light tracking-wide text-graphite-faint">
-            {WORLD_COPY.quiet}
+            {copy.world.quiet}
           </p>
         )}
       </Layer>
@@ -40,7 +44,7 @@ export default function WorldHeader({ location, isQuiet, onBack }: WorldHeaderPr
           <button
             type="button"
             onClick={onBack}
-            aria-label={WORLD_COPY.a11y.backTo(area ? country.nameLatin : WORLD_COPY.title)}
+            aria-label={copy.a11y.backTo(area ? country.nameLatin : copy.world.title)}
             className="pointer-events-auto -ml-2 -mt-3 flex min-h-11 items-center gap-2 rounded-lg px-2 text-[0.64rem] uppercase tracking-[0.22em] text-graphite-soft outline-none focus-visible:ring-1 focus-visible:ring-graphite/30"
           >
             <svg aria-hidden viewBox="0 0 6 10" focusable="false" className="h-2 w-1.5">
@@ -55,10 +59,10 @@ export default function WorldHeader({ location, isQuiet, onBack }: WorldHeaderPr
             </svg>
             {area ? (
               <span>
-                <span className="normal-case tracking-[0.14em]">{country.name}</span> {country.nameLatin}
+                <span className="normal-case tracking-[0.14em]">{country.name}</span> {regionSecondName(country, copy)}
               </span>
             ) : (
-              WORLD_COPY.title
+              copy.world.title
             )}
           </button>
 
@@ -67,7 +71,7 @@ export default function WorldHeader({ location, isQuiet, onBack }: WorldHeaderPr
               {(area ?? country).name}
             </span>
             <span className="text-[0.62rem] uppercase tracking-[0.28em] text-graphite-soft">
-              {(area ?? country).nameLatin}
+              {regionSecondName(area ?? country, copy)}
             </span>
           </h1>
         </Layer>

@@ -11,6 +11,8 @@ import ChoiceGroup from '@/features/onboarding/components/ChoiceGroup'
 import NationalityField from '@/features/onboarding/components/NationalityField'
 import { AVATAR_PRESETS, toAvatarValue } from '@/features/onboarding/data/avatars'
 import { AGE_RANGES, GENDERS } from '@/features/onboarding/data/options'
+import { nextStepFor } from '@/routes/nextStep'
+import { useAuthMessages } from '@/lib/i18n/authMessages'
 
 type OnboardingScreenProps = {
   /** Existing row, when the user got partway through before. */
@@ -29,6 +31,7 @@ const DEFAULT_AVATAR = toAvatarValue(AVATAR_PRESETS[0].id)
 export default function OnboardingScreen({ profile, onSaved }: OnboardingScreenProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const t = useAuthMessages()
 
   const [nickname, setNickname] = useState(profile?.display_name ?? '')
   const [avatar, setAvatar] = useState(profile?.avatar_url ?? DEFAULT_AVATAR)
@@ -46,12 +49,12 @@ export default function OnboardingScreen({ profile, onSaved }: OnboardingScreenP
     const trimmed = nickname.trim()
 
     if (!trimmed) {
-      setNicknameError('Choose a nickname so we know what to call you.')
+      setNicknameError(t.onboarding.nicknameRequired)
       return
     }
 
     if (!user) {
-      setSaveError('Your session has expired. Please sign in again.')
+      setSaveError(t.onboarding.sessionExpired)
       return
     }
 
@@ -70,9 +73,10 @@ export default function OnboardingScreen({ profile, onSaved }: OnboardingScreenP
       // Seed shared state before navigating, so the home guard sees the new
       // nickname instead of bouncing back to onboarding.
       onSaved(saved)
-      navigate('/home', { replace: true })
+      // Home — or the Touch Point they tapped before creating the account.
+      navigate(nextStepFor(user, saved), { replace: true })
     } catch {
-      setSaveError('We could not save your profile. Please try again.')
+      setSaveError(t.onboarding.saveFailed)
     } finally {
       setSaving(false)
     }
@@ -82,10 +86,10 @@ export default function OnboardingScreen({ profile, onSaved }: OnboardingScreenP
     <Screen align="top">
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col py-6">
         <h1 className="text-3xl font-light leading-snug tracking-tight text-sand">
-          Create your profile
+          {t.onboarding.title}
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-sand-muted">
-          Just a nickname is enough. The rest is yours to share, or not.
+          {t.onboarding.body}
         </p>
 
         <div className="mt-12 space-y-12">
@@ -96,29 +100,34 @@ export default function OnboardingScreen({ profile, onSaved }: OnboardingScreenP
           />
 
           <TextField
-            label="Nickname"
+            label={t.onboarding.nickname}
             value={nickname}
             onChange={(event) => {
               setNickname(event.target.value)
               setNicknameError(null)
             }}
             error={nicknameError}
-            placeholder="What should we call you?"
+            placeholder={t.onboarding.nicknamePlaceholder}
             maxLength={40}
             autoComplete="nickname"
             required
           />
 
           <ChoiceGroup
-            label="Age range"
-            options={AGE_RANGES}
+            label={t.onboarding.ageRange}
+            options={AGE_RANGES.map((o) => (o.value === 'under_18' ? { ...o, label: t.onboarding.under18 } : o))}
             value={ageRange}
             onChange={setAgeRange}
           />
 
           <NationalityField value={nationality} onChange={setNationality} />
 
-          <ChoiceGroup label="Gender" options={GENDERS} value={gender} onChange={setGender} />
+          <ChoiceGroup
+            label={t.onboarding.gender}
+            options={GENDERS.map((o) => ({ ...o, label: t.onboarding.genders[o.value as keyof typeof t.onboarding.genders] ?? o.label }))}
+            value={gender}
+            onChange={setGender}
+          />
         </div>
 
         <div className="mt-14 shrink-0">
@@ -128,8 +137,8 @@ export default function OnboardingScreen({ profile, onSaved }: OnboardingScreenP
             </p>
           ) : null}
 
-          <Button type="submit" loading={saving}>
-            Start my Journey
+          <Button type="submit" loading={saving} busyLabel={t.busy}>
+            {t.onboarding.submit}
           </Button>
         </div>
       </form>
