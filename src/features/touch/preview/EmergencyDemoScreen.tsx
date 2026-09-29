@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
-import { fetchPlaces, type PlaceRecord } from '@/features/places/api'
+import { usePlaceExtras, usePlaces } from '@/data/places'
 import PlaceSheet from '@/features/places/components/PlaceSheet'
-import { localizePlace } from '@/features/places/localize'
-import { usePlaceExtras } from '@/features/places/usePlaceExtras'
 import { cn } from '@/lib/cn'
 import { useLocale } from '@/lib/i18n/LocaleContext'
 import type { Locale } from '@/lib/i18n/locale'
@@ -23,24 +20,11 @@ export default function EmergencyDemoScreen() {
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
   const demo = DEMO_COPY[locale]
-  const [places, setPlaces] = useState<PlaceRecord[] | null>(null)
+  const { index } = usePlaces()
   const slug = params.get('place') ?? 'toki-no-mori'
   const emergency = params.get('state') !== 'normal'
-
-  useEffect(() => {
-    let active = true
-    fetchPlaces().then((rows) => active && setPlaces(rows), () => {})
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const view = useMemo(() => {
-    if (!places) return null
-    const all = places.map((p) => localizePlace(p, locale))
-    const place = all.find((p) => p.slug === slug)
-    return place ? { place, regionId: place.parentId } : null
-  }, [places, locale, slug])
+  const place = index?.bySlug.get(slug) ?? null
+  const view = place ? { place, regionId: place.parentId } : null
 
   const extras = usePlaceExtras(view?.place.id ?? null, view?.regionId ?? null)
 

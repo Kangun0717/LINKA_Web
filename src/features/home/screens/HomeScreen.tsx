@@ -26,9 +26,11 @@ export default function HomeScreen() {
   const { state } = useLocation() as { state: HomeArrivalState }
   // Read once: Back and Forward must not replay an arrival.
   const [arrivalPlaceId] = useState(() => state?.arrivalPlaceId ?? null)
-  // Opened from another place's card ("More LINKA places nearby").
+  // A place whose card opens on arrival — by slug (a Place page's "explore on
+  // the map") or by id (older links, another card's nearby place).
   const [params] = useSearchParams()
-  const [openPlaceId] = useState(() => params.get('place'))
+  const [openPlace] = useState(() => params.get('place'))
+  const openPlaceId = openPlace ? (discovery.find((p) => p.slug === openPlace)?.id ?? openPlace) : null
 
   return (
     <AppShell>

@@ -18,13 +18,17 @@ export const MOOD_EMOJI: Record<Mood, string> = {
   special: '✨',
 }
 
+/** `place_suggestions.status` exactly as stored (Decision 1); the interface shows friendlier words. */
 export type SuggestionStatus =
   | 'submitted'
+  | 'open'
   | 'under_review'
-  | 'community_interest'
-  | 'contacting_place'
-  | 'added'
-  | 'not_proceeding'
+  | 'contacting_partner'
+  | 'approved'
+  | 'published'
+  | 'declined'
+  | 'duplicate'
+  | 'withdrawn'
 
 export type SafetyKind =
   | 'disaster_info'
@@ -37,7 +41,12 @@ export type SafetyKind =
 
 export type JourneyMessages = {
   nav: { map: string; moments: string; me: string }
-  regions: { japan: string; sado: string }
+  /**
+   * A region's second name in this language, by its id in the region registry
+   * (src/features/world/geo/regions.ts). A region not listed shows its own
+   * romanised name.
+   */
+  regions: Readonly<Record<string, string>>
   landing: {
     detected: string
     startTitle: string
@@ -63,6 +72,8 @@ export type JourneyMessages = {
     fees: string
     photoCredit: string
     otherPlaces: string
+    /** What a nearby place's distance means, by `PlaceDistance` from + basis. */
+    distanceNote: Record<'place:straight_line', string>
   }
   safety: {
     title: string
@@ -76,6 +87,8 @@ export type JourneyMessages = {
     scopeNational: string
     liveNote: string
     loadFailed: string
+    viewAll: string
+    source: (publisher: string) => string
   }
   memory: {
     feelingQuestion: string
@@ -111,6 +124,14 @@ export type JourneyMessages = {
     noMemoryYet: string
     addMemory: string
     test: string
+    /** A /moments/:id that is not (or no longer) one of the user's visits. */
+    notFound: string
+    all: string
+  }
+  placePage: {
+    loading: string
+    notFoundTitle: string
+    notFoundBody: string
   }
   me: {
     title: string
@@ -156,7 +177,7 @@ export type JourneyMessages = {
 
 const en: JourneyMessages = {
   nav: { map: 'Map', moments: 'Moments', me: 'Me' },
-  regions: { japan: 'Japan', sado: 'Sado' },
+  regions: { jp: 'Japan', sado: 'Sado' },
   landing: {
     detected: 'LINKA Touch Point detected',
     startTitle: 'Save this journey',
@@ -182,6 +203,7 @@ const en: JourneyMessages = {
     fees: 'Fees',
     photoCredit: 'Photo',
     otherPlaces: 'More LINKA places nearby',
+    distanceNote: { 'place:straight_line': 'Straight-line distance from this place' },
   },
   safety: {
     title: 'Safety',
@@ -203,6 +225,8 @@ const en: JourneyMessages = {
     scopeNational: 'Nationwide & emergency numbers',
     liveNote: 'LINKA does not show live warning status. Open the official links for current information.',
     loadFailed: 'Official safety information could not be loaded. Please try again.',
+    viewAll: 'View all',
+    source: (publisher) => `Source: ${publisher}`,
   },
   memory: {
     feelingQuestion: 'How did it feel to be here today?',
@@ -238,6 +262,13 @@ const en: JourneyMessages = {
     noMemoryYet: 'No memory written yet.',
     addMemory: 'Add a memory',
     test: 'Test Touch',
+    notFound: 'This moment is not in your journey.',
+    all: 'All moments',
+  },
+  placePage: {
+    loading: 'Opening this place',
+    notFoundTitle: 'This place is not on LINKA',
+    notFoundBody: 'The link may be mistyped, or the place is no longer published.',
   },
   me: {
     title: 'Me',
@@ -278,19 +309,22 @@ const en: JourneyMessages = {
     required: 'Please fill this in.',
     invalidLink: 'That link does not look right.',
     status: {
-      submitted: 'Submitted',
-      under_review: 'Under review',
-      community_interest: 'Community interest',
-      contacting_place: 'Contacting the place',
-      added: 'Added to LINKA',
-      not_proceeding: 'Not proceeding',
+      submitted: 'Received',
+      open: 'Open for support',
+      under_review: 'Being reviewed by LINKA',
+      contacting_partner: 'Talking with the place',
+      approved: 'Approved',
+      published: 'Now a LINKA place',
+      declined: 'Not this time',
+      duplicate: 'Already suggested',
+      withdrawn: 'Withdrawn',
     },
   },
 }
 
 const ja: JourneyMessages = {
   nav: { map: 'マップ', moments: 'モーメント', me: 'マイページ' },
-  regions: { japan: 'JAPAN', sado: 'SADO' },
+  regions: { jp: 'JAPAN', sado: 'SADO' },
   landing: {
     detected: 'LINKAタッチポイントを検出しました',
     startTitle: '旅を記録する',
@@ -316,6 +350,7 @@ const ja: JourneyMessages = {
     fees: '料金',
     photoCredit: '写真',
     otherPlaces: '近くのLINKAの場所',
+    distanceNote: { 'place:straight_line': 'この場所からの直線距離' },
   },
   safety: {
     title: '安全・防災',
@@ -337,6 +372,8 @@ const ja: JourneyMessages = {
     scopeNational: '全国の情報・緊急連絡先',
     liveNote: 'LINKAは現在の警報状況を表示していません。最新情報は公式サイトでご確認ください。',
     loadFailed: '公式の防災情報を読み込めませんでした。もう一度お試しください。',
+    viewAll: 'すべて見る',
+    source: (publisher) => `出典：${publisher}`,
   },
   memory: {
     feelingQuestion: '今日、ここでどんな気持ちでしたか？',
@@ -372,6 +409,13 @@ const ja: JourneyMessages = {
     noMemoryYet: 'まだ思い出が書かれていません。',
     addMemory: '思い出を書く',
     test: 'テストタッチ',
+    notFound: 'このモーメントはあなたの旅にありません。',
+    all: 'すべてのモーメント',
+  },
+  placePage: {
+    loading: 'この場所を開いています',
+    notFoundTitle: 'この場所はLINKAにありません',
+    notFoundBody: 'リンクが間違っているか、この場所は公開されていません。',
   },
   me: {
     title: 'マイページ',
@@ -412,19 +456,22 @@ const ja: JourneyMessages = {
     required: '入力してください。',
     invalidLink: 'リンクの形式が正しくありません。',
     status: {
-      submitted: '受付済み',
-      under_review: '確認中',
-      community_interest: 'みんなの関心',
-      contacting_place: '先方に連絡中',
-      added: 'LINKAに追加',
-      not_proceeding: '見送り',
+      submitted: '受け付けました',
+      open: 'みんなの応援募集中',
+      under_review: 'LINKAで確認中',
+      contacting_partner: '現地と相談中',
+      approved: '採用が決まりました',
+      published: 'LINKAの場所になりました',
+      declined: '今回は見送り',
+      duplicate: '同じ提案があります',
+      withdrawn: '取り下げ',
     },
   },
 }
 
 const zhHans: JourneyMessages = {
   nav: { map: '地图', moments: '瞬间', me: '我的' },
-  regions: { japan: '日本', sado: '佐渡' },
+  regions: { jp: '日本', sado: '佐渡' },
   landing: {
     detected: '已检测到 LINKA 触点',
     startTitle: '保存这次旅程',
@@ -450,6 +497,7 @@ const zhHans: JourneyMessages = {
     fees: '费用',
     photoCredit: '照片',
     otherPlaces: '附近的 LINKA 地点',
+    distanceNote: { 'place:straight_line': '距此地的直线距离' },
   },
   safety: {
     title: '安全与防灾',
@@ -471,6 +519,8 @@ const zhHans: JourneyMessages = {
     scopeNational: '全国信息与紧急电话',
     liveNote: 'LINKA 不显示实时警报状态，最新信息请查看官方网站。',
     loadFailed: '无法加载官方防灾信息，请重试。',
+    viewAll: '查看全部',
+    source: (publisher) => `来源：${publisher}`,
   },
   memory: {
     feelingQuestion: '今天在这里，你是什么心情？',
@@ -506,6 +556,13 @@ const zhHans: JourneyMessages = {
     noMemoryYet: '还没有写下回忆。',
     addMemory: '写下回忆',
     test: '测试触碰',
+    notFound: '你的旅程中没有这个瞬间。',
+    all: '全部瞬间',
+  },
+  placePage: {
+    loading: '正在打开这个地点',
+    notFoundTitle: 'LINKA 上没有这个地点',
+    notFoundBody: '链接可能有误，或这个地点已不再公开。',
   },
   me: {
     title: '我的',
@@ -546,12 +603,15 @@ const zhHans: JourneyMessages = {
     required: '请填写此项。',
     invalidLink: '链接格式不正确。',
     status: {
-      submitted: '已提交',
-      under_review: '审核中',
-      community_interest: '社区关注',
-      contacting_place: '联系地点中',
-      added: '已加入 LINKA',
-      not_proceeding: '暂不推进',
+      submitted: '已收到',
+      open: '征集支持中',
+      under_review: 'LINKA 审核中',
+      contacting_partner: '与当地沟通中',
+      approved: '已通过',
+      published: '已成为 LINKA 地点',
+      declined: '这次暂不推进',
+      duplicate: '已有相同推荐',
+      withdrawn: '已撤回',
     },
   },
 }

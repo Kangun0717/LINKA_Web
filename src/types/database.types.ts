@@ -19,34 +19,40 @@ export type Database = {
           cover_photo_id: string | null
           created_at: string
           id: string
+          mood: string | null
           note: string | null
           place_id: string
-          touch_event_id: string
+          touch_event_id: string | null
           updated_at: string
           user_id: string
           visibility: string
+          visit_id: string
         }
         Insert: {
           cover_photo_id?: string | null
           created_at?: string
           id?: string
+          mood?: string | null
           note?: string | null
           place_id: string
-          touch_event_id: string
+          touch_event_id?: string | null
           updated_at?: string
           user_id?: string
           visibility?: string
+          visit_id: string
         }
         Update: {
           cover_photo_id?: string | null
           created_at?: string
           id?: string
+          mood?: string | null
           note?: string | null
           place_id?: string
-          touch_event_id?: string
+          touch_event_id?: string | null
           updated_at?: string
           user_id?: string
           visibility?: string
+          visit_id?: string
         }
         Relationships: [
           {
@@ -66,7 +72,7 @@ export type Database = {
           {
             foreignKeyName: "memories_touch_event_id_fkey"
             columns: ["touch_event_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "touch_events"
             referencedColumns: ["id"]
           },
@@ -75,6 +81,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memories_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: true
+            referencedRelation: "visits"
             referencedColumns: ["id"]
           },
         ]
@@ -333,6 +346,7 @@ export type Database = {
           content_checked_at: string | null
           created_at: string
           description: string | null
+          hero_image_alt: string | null
           locale: string
           locality: string | null
           name: string | null
@@ -348,6 +362,7 @@ export type Database = {
           content_checked_at?: string | null
           created_at?: string
           description?: string | null
+          hero_image_alt?: string | null
           locale: string
           locality?: string | null
           name?: string | null
@@ -363,6 +378,7 @@ export type Database = {
           content_checked_at?: string | null
           created_at?: string
           description?: string | null
+          hero_image_alt?: string | null
           locale?: string
           locality?: string | null
           name?: string | null
@@ -389,7 +405,10 @@ export type Database = {
           created_at: string
           discovery_enabled: boolean
           hero_image_credit: string | null
+          hero_image_license: string | null
+          hero_image_license_url: string | null
           hero_image_path: string | null
+          hero_image_source_url: string | null
           id: string
           kind: string
           label_side: string | null
@@ -410,7 +429,10 @@ export type Database = {
           created_at?: string
           discovery_enabled?: boolean
           hero_image_credit?: string | null
+          hero_image_license?: string | null
+          hero_image_license_url?: string | null
           hero_image_path?: string | null
+          hero_image_source_url?: string | null
           id?: string
           kind?: string
           label_side?: string | null
@@ -431,7 +453,10 @@ export type Database = {
           created_at?: string
           discovery_enabled?: boolean
           hero_image_credit?: string | null
+          hero_image_license?: string | null
+          hero_image_license_url?: string | null
           hero_image_path?: string | null
+          hero_image_source_url?: string | null
           id?: string
           kind?: string
           label_side?: string | null
@@ -639,39 +664,98 @@ export type Database = {
         }
         Relationships: []
       }
+      safety_resources: {
+        Row: {
+          checked_at: string
+          created_at: string
+          id: string
+          kind: string
+          languages: string[]
+          phone: string | null
+          place_id: string | null
+          publisher: string
+          sort: number
+          summary: Json
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          checked_at: string
+          created_at?: string
+          id?: string
+          kind: string
+          languages?: string[]
+          phone?: string | null
+          place_id?: string | null
+          publisher: string
+          sort?: number
+          summary?: Json
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          languages?: string[]
+          phone?: string | null
+          place_id?: string | null
+          publisher?: string
+          sort?: number
+          summary?: Json
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safety_resources_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       touch_events: {
         Row: {
           created_at: string
           id: string
           is_test: boolean
-          local_date: string | null
-          place_id: string | null
+          local_date: string
+          place_id: string
           source: string
           touched_at: string
           touchpoint_id: string
           user_id: string
+          visit_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           is_test?: boolean
-          local_date?: string | null
-          place_id?: string | null
+          local_date: string
+          place_id: string
           source?: string
           touched_at?: string
           touchpoint_id: string
           user_id: string
+          visit_id: string
         }
         Update: {
           created_at?: string
           id?: string
           is_test?: boolean
-          local_date?: string | null
-          place_id?: string | null
+          local_date?: string
+          place_id?: string
           source?: string
           touched_at?: string
           touchpoint_id?: string
           user_id?: string
+          visit_id?: string
         }
         Relationships: [
           {
@@ -695,6 +779,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "touch_events_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
         ]
       }
       touchpoints: {
@@ -713,6 +804,7 @@ export type Database = {
           place_id: string | null
           project_id: string | null
           public_id: string
+          test_access: string
           touchpoint_type: string
           updated_at: string
         }
@@ -731,6 +823,7 @@ export type Database = {
           place_id?: string | null
           project_id?: string | null
           public_id?: string
+          test_access?: string
           touchpoint_type: string
           updated_at?: string
         }
@@ -749,6 +842,7 @@ export type Database = {
           place_id?: string | null
           project_id?: string | null
           public_id?: string
+          test_access?: string
           touchpoint_type?: string
           updated_at?: string
         }
@@ -765,6 +859,57 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visits: {
+        Row: {
+          created_at: string
+          first_touched_at: string
+          id: string
+          is_test: boolean
+          last_touched_at: string
+          local_date: string
+          place_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          first_touched_at: string
+          id?: string
+          is_test?: boolean
+          last_touched_at: string
+          local_date: string
+          place_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          first_touched_at?: string
+          id?: string
+          is_test?: boolean
+          last_touched_at?: string
+          local_date?: string
+          place_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -787,6 +932,7 @@ export type Database = {
           place_id: string
           touch_event_id: string
           touched_at: string
+          visit_id: string
         }[]
       }
       resolve_touch_point: {

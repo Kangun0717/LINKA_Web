@@ -6,7 +6,8 @@
 --      the place), any signed-in account may TOUCH it — and every such touch
 --      is still is_test = true, so it never reaches a visitor count.
 --   2. memories.mood — one of six fixed moods.
---   3. place_suggestions statuses for the review pipeline, voting-ready.
+--   3. place_suggestions statuses for the review pipeline (Decision 1,
+--      2026-09-28), voting-ready. Existing rows are carried over.
 --   4. safety_resources — official disaster / safety links, public read.
 --
 -- Hero image credits are a separate file (…100100_place_heroes.sql): content,
@@ -141,17 +142,28 @@ alter table public.memories
 grant insert (mood), update (mood) on public.memories to authenticated;
 
 -- ─── 3. place_suggestions: the review pipeline ──────────────────────────────
--- submitted → under_review → community_interest → contacting_place →
--- added | not_proceeding. The table has no rows; the old values
--- (pending/approved/rejected) are replaced, not migrated.
--- Voting later: a separate place_suggestion_votes (suggestion_id, user_id,
--- primary key both) table — nothing here needs to change for it.
+-- Decision 1 (2026-09-28):
+--   submitted → open → under_review → contacting_partner → approved → published
+--   terminal: declined | duplicate | withdrawn
+-- `submitted` is private until moderated. Only `open` and later states may
+-- ever be shown in Community — no public read policy exists yet; that comes
+-- with the Community sprint. Supporters (a later place_suggestion_supports
+-- table, primary key (suggestion_id, user_id)) are never exposed.
+--
+-- Rows written by the demo's Suggest screen carry the old values, so they
+-- are carried over rather than assumed absent:
+--   pending → submitted · approved → approved · rejected → declined
 
 alter table public.place_suggestions drop constraint if exists place_suggestions_status_check;
+
+update public.place_suggestions set status = 'submitted' where status = 'pending';
+update public.place_suggestions set status = 'declined' where status = 'rejected';
+
 alter table public.place_suggestions alter column status set default 'submitted';
 alter table public.place_suggestions
   add constraint place_suggestions_status_check
-  check (status in ('submitted', 'under_review', 'community_interest', 'contacting_place', 'added', 'not_proceeding'));
+  check (status in ('submitted', 'open', 'under_review', 'contacting_partner', 'approved', 'published',
+                    'declined', 'duplicate', 'withdrawn'));
 
 drop policy if exists "Users submit pending suggestions" on public.place_suggestions;
 drop policy if exists "Users submit suggestions" on public.place_suggestions;

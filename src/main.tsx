@@ -14,7 +14,8 @@ if (!rootElement) {
 
 const root = createRoot(rootElement)
 
-void firstRouteReady(window.location.pathname).finally(() =>
+// Render whatever happens: a chunk that failed to arrive early is fetched again when needed.
+void firstRouteReady(window.location.pathname).catch(() => {}).then(() =>
   root.render(
     <StrictMode>
       <BrowserRouter>

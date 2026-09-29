@@ -39,10 +39,15 @@ export async function fetchMySuggestions(): Promise<SuggestionRow[]> {
   return data
 }
 
-/** Before the review-pipeline migration the only stored value is `pending`. */
+const STATUSES: readonly SuggestionStatus[] = [
+  'submitted', 'open', 'under_review', 'contacting_partner', 'approved', 'published', 'declined', 'duplicate', 'withdrawn',
+]
+
+/**
+ * A stored status as the interface knows it. The database allows only the
+ * Decision 1 values; anything else (a state added later, before the app
+ * learns it) reads as the neutral "received" rather than breaking the page.
+ */
 export function normalizeStatus(status: string): SuggestionStatus {
-  if (status === 'pending') return 'submitted'
-  if (status === 'approved') return 'added'
-  if (status === 'rejected') return 'not_proceeding'
-  return status as SuggestionStatus
+  return (STATUSES as readonly string[]).includes(status) ? (status as SuggestionStatus) : 'submitted'
 }

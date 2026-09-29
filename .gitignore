@@ -36,3 +36,8 @@ Thumbs.db
 
 # Supabase CLI local state (project link, versions)
 supabase/.temp/
+
+# End-to-end harness: local database cluster, downloaded tools, test builds,
+# screenshots and measurements (see e2e/README.md)
+e2e/.cache/
+e2e/.artifacts/

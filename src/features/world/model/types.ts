@@ -1,4 +1,4 @@
-import type { SheetProgress } from '@/features/places/components/PlaceSheet'
+import type { RegionProgress } from '@/data/journey'
 import type { Hero, LocalizedText, Practical } from '@/features/places/localize'
 
 /**
@@ -60,6 +60,8 @@ export type MemoryPhoto = {
  */
 export type DiscoveryPlace = {
   id: string
+  /** The place's public page is /place/:slug. Absent for dev-preview samples. */
+  slug?: string
   /** The place's own name, first. */
   name: string
   /** A verified name in the reader's language, or a romanization. */
@@ -81,7 +83,7 @@ export type DiscoveryPlace = {
   /** The region it belongs to, for its official safety links. */
   regionId?: string | null
   /** "Exploring Sado · 1 / 5" — signed-in users only. */
-  progress?: SheetProgress
+  progress?: RegionProgress
   /** The region's name in the reader's language, for the safety headings. */
   regionName?: string | null
   /** Curated things to do or see there. */

@@ -18,15 +18,16 @@ import {
   ForgotPasswordScreen,
   OnboardingRoute,
   PasswordRoute,
-  preloadAccount,
   ResetPasswordScreen,
   SignInScreen,
   SignUpScreen,
   VerifyScreen,
   HomeScreen,
   MeScreen,
+  MomentScreen,
   MomentsScreen,
   MyWorldPreviewScreen,
+  PlaceScreen,
   SuggestScreen,
   TouchScreen,
 } from '@/routes/lazyScreens'
@@ -49,10 +50,10 @@ export default function App() {
   useEffect(() => {
     const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1200))
     idle(() => {
-      void preloadAccount()
-      void HomeScreen.preload()
-      void MomentsScreen.preload()
-      void MeScreen.preload()
+      AuthEntryScreen.warm()
+      HomeScreen.warm()
+      MomentsScreen.warm()
+      MeScreen.warm()
     })
   }, [])
 
@@ -72,6 +73,17 @@ export default function App() {
                 element={
                   <Suspense fallback={<div className="h-dvh bg-paper" />}>
                     <TouchScreen />
+                  </Suspense>
+                }
+              />
+
+              {/* The public page of a place: shared links and printed QR codes. Open to
+                  everyone, signed in or not, and it never records anything. */}
+              <Route
+                path="/place/:slug"
+                element={
+                  <Suspense fallback={<div className="h-dvh bg-paper" />}>
+                    <PlaceScreen />
                   </Suspense>
                 }
               />
@@ -111,6 +123,14 @@ export default function App() {
                   element={
                     <Suspense fallback={pageFallback}>
                       <MomentsScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/moments/:id"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <MomentScreen />
                     </Suspense>
                   }
                 />

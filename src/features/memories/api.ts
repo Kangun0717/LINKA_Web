@@ -1,3 +1,4 @@
+import { onPrivateReset } from '@/data/store'
 import type { Mood } from '@/lib/i18n/journeyMessages'
 import { getSupabase } from '@/lib/supabase'
 import type { Tables, TablesUpdate } from '@/types/database.types'
@@ -12,9 +13,14 @@ import type { Tables, TablesUpdate } from '@/types/database.types'
 
 export type MemoryPhotoRow = Pick<Tables<'memory_photos'>, 'id' | 'storage_path' | 'width' | 'height' | 'position'>
 
+/**
+ * One memory per visit (the database enforces it). `touch_event_id` is only
+ * set on memories created before visits existed; it stays readable, but
+ * nothing new is keyed by it.
+ */
 export type MemoryRecord = Pick<
   Tables<'memories'>,
-  'id' | 'note' | 'place_id' | 'touch_event_id' | 'cover_photo_id' | 'created_at' | 'updated_at'
+  'id' | 'note' | 'place_id' | 'visit_id' | 'touch_event_id' | 'cover_photo_id' | 'created_at' | 'updated_at'
 > & {
   /** Present once the mood migration is applied. */
   mood?: Mood | null
@@ -38,14 +44,20 @@ export async function fetchMyMemories(): Promise<MemoryRecord[]> {
   return data as unknown as MemoryRecord[]
 }
 
-export async function fetchMemoryForTouch(touchEventId: string): Promise<MemoryRecord | null> {
+/** The memory of a visit, if one has been kept. At most one exists. */
+export async function fetchMemoryForVisit(visitId: string): Promise<MemoryRecord | null> {
   const { data, error } = await (await getSupabase())
     .from('memories')
     .select(MEMORY_COLUMNS)
-    .eq('touch_event_id', touchEventId)
+    .eq('visit_id', visitId)
     .maybeSingle()
   if (error) throw error
   return data as unknown as MemoryRecord | null
+}
+
+/** The insert lost to a memory that already exists for this visit (`memories_visit_id_key`). */
+function isVisitAlreadyRemembered(error: { code?: string; message?: string } | null): boolean {
+  return Boolean(error && error.code === '23505' && error.message?.includes('memories_visit_id_key'))
 }
 
 /** The server does not have the mood column yet (its migration is pending). */
@@ -53,40 +65,65 @@ function isMissingMoodColumn(error: { code?: string; message?: string } | null):
   return Boolean(error && (error.code === 'PGRST204' || error.code === '42703') && error.message?.includes('mood'))
 }
 
-export type SavedMemory = { memory: MemoryRecord; moodSkipped: boolean }
+/**
+ * `recovered`: the caller did not know this visit already had a memory, so
+ * the one that existed was updated instead — and it may hold words or a mood
+ * the caller has not shown yet.
+ */
+export type SavedMemory = { memory: MemoryRecord; moodSkipped: boolean; recovered: boolean }
+
+/** The visit a memory belongs to: `record_touch()`'s `visit_id` and `place_id`. */
+export type VisitRef = { visitId: string; placeId: string }
 
 /**
  * Create or update the memory of one visit. Empty fields stay empty: nothing
  * is filled in on the user's behalf.
+ *
+ * A visit has at most one memory. If the caller did not know one already
+ * existed — a second tab, a save racing the initial load, a photo and a save
+ * at once — the insert is refused by the database and the existing memory is
+ * updated instead, so a visit never gains a second memory. That update only
+ * adds what the caller supplied: an empty note or no mood keeps what is there.
  *
  * If the server cannot store a mood yet, the note and photos are still saved
  * and the caller is told (`moodSkipped`) so it can say so — never silently.
  */
 export async function saveMemory(
   existing: MemoryRecord | null,
-  visit: { touchEventId: string; placeId: string },
-  fields: { note: string; mood: Mood | null },
+  visit: VisitRef,
+  input: { note: string; mood: Mood | null },
 ): Promise<SavedMemory> {
   const supabase = await getSupabase()
+  let target = existing
+  let fields = input
   const write = (withMood: boolean) => {
     const values: { note: string | null; mood?: Mood | null } = { note: fields.note.trim() || null }
-    if (withMood && (fields.mood || existing?.mood)) values.mood = fields.mood
+    if (withMood && (fields.mood || target?.mood)) values.mood = fields.mood
     // `mood` joins the generated types once its migration is applied.
     const row = values as TablesUpdate<'memories'>
-    const query = existing
-      ? supabase.from('memories').update(row).eq('id', existing.id)
-      : supabase.from('memories').insert({ ...row, place_id: visit.placeId, touch_event_id: visit.touchEventId })
+    const query = target
+      ? supabase.from('memories').update(row).eq('id', target.id)
+      : supabase.from('memories').insert({ ...row, visit_id: visit.visitId, place_id: visit.placeId })
     return query.select(MEMORY_COLUMNS).single()
   }
 
   let { data, error } = await write(true)
+  let recovered = false
+  if (!target && isVisitAlreadyRemembered(error)) {
+    target = await fetchMemoryForVisit(visit.visitId)
+    if (target) {
+      recovered = true
+      fields = { note: input.note.trim() ? input.note : (target.note ?? ''), mood: input.mood ?? target.mood ?? null }
+      ;({ data, error } = await write(true))
+    }
+  }
   let moodSkipped = false
   if (isMissingMoodColumn(error) && fields.mood) {
     ;({ data, error } = await write(false))
     moodSkipped = true
   }
   if (error) throw error
-  return { memory: data as unknown as MemoryRecord, moodSkipped }
+  return { memory: data as unknown as MemoryRecord, moodSkipped, recovered }
 }
 
 const BUCKET = 'memory-photos'
@@ -198,6 +235,8 @@ export async function removeMemoryPhoto(photo: MemoryPhotoRow): Promise<void> {
 
 const signed = new Map<string, { url: string; expires: number }>()
 const SIGNED_SECONDS = 60 * 60
+// Signed URLs are private data too: dropped with the rest when the account changes.
+onPrivateReset(() => signed.clear())
 
 /** Short-lived URLs for private photos, reused until shortly before they expire. */
 export async function signedPhotoUrls(paths: string[]): Promise<Record<string, string>> {

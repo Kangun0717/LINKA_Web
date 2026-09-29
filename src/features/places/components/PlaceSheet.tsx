@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 
-import type { SafetyResource } from '@/features/places/api'
+import type { RegionProgress } from '@/data/journey'
+import type { PlaceExtras } from '@/data/places'
+import NearbyPlaces, { type NearbyPlace } from '@/features/places/components/NearbyPlaces'
+import PlaceHero from '@/features/places/components/PlaceHero'
+import PlaceSafety, { type SafetyScope } from '@/features/places/components/PlaceSafety'
 import type { Hero, LocalizedText, Practical } from '@/features/places/localize'
-import type { PlaceExtras } from '@/features/places/usePlaceExtras'
 import { cn } from '@/lib/cn'
-import type { SafetyKind } from '@/lib/i18n/journeyMessages'
 import { useLocale } from '@/lib/i18n/LocaleContext'
-import { formatCalendarDate, HTML_LANG, isLocale, type Locale } from '@/lib/i18n/locale'
+import { formatCalendarDate, HTML_LANG, type Locale } from '@/lib/i18n/locale'
 import { useMessages } from '@/lib/i18n/useMessages'
 
 /** Everything the sheet can say about a place. All of it real and sourced. */
@@ -23,14 +25,12 @@ export type SheetPlace = {
   sampleNote?: string
 }
 
-export type SheetProgress = { region: string; visited: number; total: number } | null
-
 type PlaceSheetProps = {
   place: SheetPlace
   /** `YYYY-MM-DD` at the place when first touched, or null if never. */
   visitedOn: string | null
   extras: PlaceExtras
-  progress: SheetProgress
+  progress: RegionProgress
   /**
    * A notice shown above the place — supplied by the caller. Production passes
    * none; the dev-only emergency demonstration passes its clearly-labelled one.
@@ -43,9 +43,12 @@ type PlaceSheetProps = {
   /** `-1` while the surface holding the sheet is hidden. */
   tabIndex?: number
   /** Which rows of the safety list belong to this place, and which to its region. */
-  scope?: { placeId: string; regionId: string | null; regionName: string | null }
-  /** Other discoverable LINKA places, shown last; tapping one opens it. */
-  others?: readonly { id: string; name: string; nameLatin: string; hero: Hero | null }[]
+  scope?: SafetyScope
+  /**
+   * Other discoverable LINKA places, shown last in the order given (nearest
+   * first, see `nearbyPlaces`); tapping one opens it.
+   */
+  others?: readonly NearbyPlace[]
   onOpenOther?: (id: string) => void
   /**
    * Only the photo, identity and introduction — for the NFC landing before
@@ -56,18 +59,9 @@ type PlaceSheetProps = {
   children?: ReactNode
 }
 
-const SAFETY_ORDER: SafetyKind[] = [
-  'alerts',
-  'emergency_contact',
-  'evacuation',
-  'hazard_map',
-  'weather_warnings',
-  'disaster_info',
-  'multilingual',
-]
-
 /**
- * The Place Sheet: one place, in the order a visitor needs it.
+ * The Place Sheet: one place, in the order a visitor needs it — the shared
+ * presentation behind the map's place card, /place/:slug and /t/:publicId.
  *
  *   photo → name → visited or not → what it is → who is here today →
  *   how much of the region you have explored → what is on → hours, fees →
@@ -111,7 +105,7 @@ export default function PlaceSheet({
         {notice}
         {safetyFirst && (extras.safety.length > 0 || extras.safetyFailed) && (
           <div className="mb-5">
-            <SafetySection extras={extras} scope={scope} tabIndex={tabIndex} emphasised />
+            <PlaceSafety extras={extras} scope={scope} tabIndex={tabIndex} emphasised />
           </div>
         )}
 
@@ -209,7 +203,7 @@ export default function PlaceSheet({
         )}
 
         {!compact && !safetyFirst && (extras.safety.length > 0 || extras.safetyFailed) && (
-          <SafetySection extras={extras} scope={scope} tabIndex={tabIndex} emphasised={false} />
+          <PlaceSafety extras={extras} scope={scope} tabIndex={tabIndex} emphasised={false} />
         )}
 
         {!compact && place.officialUrl && (
@@ -245,162 +239,13 @@ export default function PlaceSheet({
 
         {!compact && others.length > 0 && onOpenOther && (
           <Section title={copy.sheet.otherPlaces}>
-            <ul className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-              {others.map((other) => (
-                <li key={other.id} className="w-36 shrink-0">
-                  <button
-                    type="button"
-                    tabIndex={tabIndex}
-                    onClick={() => onOpenOther(other.id)}
-                    className="block w-full overflow-hidden rounded-xl bg-white/70 text-left ring-1 ring-graphite/[0.08] outline-none focus-visible:ring-graphite/40"
-                  >
-                    {other.hero ? (
-                      <img src={other.hero.src} alt="" loading="lazy" className="block aspect-[4/3] w-full object-cover" />
-                    ) : (
-                      <span className="block aspect-[4/3] w-full bg-graphite/[0.06]" />
-                    )}
-                    <span lang="ja" className="block px-2.5 pt-2 text-[0.8rem] tracking-[0.04em] text-graphite">{other.name}</span>
-                    <span className="block px-2.5 pb-2 text-[0.52rem] uppercase tracking-[0.18em] text-graphite-soft">{other.nameLatin}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <NearbyPlaces places={others} onOpen={onOpenOther} tabIndex={tabIndex} />
           </Section>
         )}
 
         {place.sampleNote && <p className="mt-4 text-[0.56rem] tracking-[0.06em] text-graphite-faint">{place.sampleNote}</p>}
       </div>
     </article>
-  )
-}
-
-function PlaceHero({ hero, priority, tabIndex }: { hero: Hero; priority: boolean; tabIndex: number }) {
-  return (
-    <figure className="relative overflow-hidden bg-[#e9e4da]">
-      <img
-        src={hero.src}
-        srcSet={hero.srcSet}
-        sizes="(max-width: 480px) 100vw, 480px"
-        alt={hero.alt}
-        width={800}
-        height={500}
-        loading={priority ? 'eager' : 'lazy'}
-        fetchPriority={priority ? 'high' : 'auto'}
-        decoding="async"
-        className="block aspect-[16/10] w-full object-cover saturate-[0.92]"
-      />
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/35 to-transparent" />
-      <figcaption className="absolute bottom-1.5 right-2 text-[0.54rem] tracking-[0.03em] text-white/90 [text-shadow:0_0_4px_rgba(0,0,0,0.6)]">
-        {hero.sourceUrl ? (
-          <a href={hero.sourceUrl} target="_blank" rel="noopener noreferrer" tabIndex={tabIndex} className="underline-offset-2 hover:underline">
-            {hero.credit}
-          </a>
-        ) : (
-          hero.credit
-        )}
-      </figcaption>
-    </figure>
-  )
-}
-
-/** Official information, kept visibly apart from LINKA's own words. */
-function SafetySection({
-  extras,
-  scope,
-  tabIndex,
-  emphasised,
-}: {
-  extras: PlaceExtras
-  scope?: { placeId: string; regionId: string | null; regionName: string | null }
-  tabIndex: number
-  emphasised: boolean
-}) {
-  const copy = useMessages()
-  const { locale } = useLocale()
-  const resources = extras.safety
-  const byKind = (rows: SafetyResource[]) =>
-    [...rows].sort((a, b) => SAFETY_ORDER.indexOf(a.kind as SafetyKind) - SAFETY_ORDER.indexOf(b.kind as SafetyKind) || a.sort - b.sort)
-  // The most specific official information first: this district, then the region, then national.
-  const groups = [
-    { key: 'place', title: copy.safety.scopePlace, rows: byKind(resources.filter((r) => scope && r.place_id === scope.placeId)) },
-    {
-      key: 'region',
-      title: copy.safety.scopeRegion(scope?.regionName ?? ''),
-      rows: byKind(resources.filter((r) => r.place_id !== null && (!scope || r.place_id !== scope.placeId))),
-    },
-    { key: 'national', title: copy.safety.scopeNational, rows: byKind(resources.filter((r) => r.place_id === null)) },
-  ].filter((g) => g.rows.length > 0)
-  const checked = resources.reduce((latest, r) => (r.checked_at > latest ? r.checked_at : latest), '')
-
-  return (
-    <section
-      aria-label={copy.safety.title}
-      className={cn('mt-7 rounded-2xl px-4 py-4 first:mt-0', emphasised ? 'bg-[#fbf1ec] ring-1 ring-[#b4553c]/30' : 'bg-[#eef1ef] ring-1 ring-graphite/10')}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[0.86rem] tracking-[0.1em]">{copy.safety.title}</h3>
-        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[0.54rem] uppercase tracking-[0.16em] text-graphite-soft">
-          {copy.safety.official}
-        </span>
-      </div>
-      <p className="mt-1.5 text-[0.66rem] leading-snug text-graphite-soft">{copy.safety.intro}</p>
-      <p className="mt-1 text-[0.62rem] leading-snug text-graphite-faint">{copy.safety.liveNote}</p>
-
-      {extras.safetyFailed && (
-        <p role="alert" className="mt-3 rounded-xl bg-white/80 px-3.5 py-2.5 text-[0.72rem] text-[#a0442c]">{copy.safety.loadFailed}</p>
-      )}
-
-      {groups.map((group) => (
-        <div key={group.key} className="mt-4">
-          <h4 className="text-[0.6rem] uppercase tracking-[0.18em] text-graphite-soft">{group.title}</h4>
-          <ul className="mt-1.5 space-y-2">
-            {group.rows.map((item) => {
-              const summary = item.summary[locale] ?? item.summary.en ?? item.summary.ja ?? ''
-              const langs = item.languages.filter(isLocale).map((l: Locale) => copy.language.names[l])
-              const kind = copy.safety.kinds[item.kind as SafetyKind] ?? ''
-              return (
-                <li key={item.id}>
-                  {item.phone ? (
-                    <a
-                      href={`tel:${item.phone.replace(/[^\d#+]/g, '')}`}
-                      tabIndex={tabIndex}
-                      className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white/80 px-3.5 py-2 outline-none ring-1 ring-graphite/10 focus-visible:ring-graphite/40"
-                    >
-                      <span className="text-[0.74rem] leading-snug">{summary}</span>
-                      <span className="shrink-0 text-[1rem] tabular-nums tracking-[0.04em]">{item.phone}</span>
-                    </a>
-                  ) : (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      tabIndex={tabIndex}
-                      className="block min-h-11 rounded-xl bg-white/80 px-3.5 py-2 outline-none ring-1 ring-graphite/10 focus-visible:ring-graphite/40"
-                    >
-                      <span className="block text-[0.54rem] uppercase tracking-[0.16em] text-graphite-faint">{kind}</span>
-                      <span className="flex items-start justify-between gap-3">
-                        <span className="text-[0.74rem] leading-snug">{summary}</span>
-                        <span aria-hidden className="text-graphite-soft">↗</span>
-                      </span>
-                      <span className="mt-0.5 block text-[0.58rem] leading-snug text-graphite-faint">
-                        {item.publisher}
-                        {langs.length > 0 ? ` · ${copy.safety.languages(langs.join(' / '))}` : ''}
-                      </span>
-                    </a>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
-
-      {checked && (
-        <p className="mt-3 text-[0.56rem] leading-snug text-graphite-faint">
-          {copy.place.asOf(formatCalendarDate(checked, locale))}
-        </p>
-      )}
-    </section>
   )
 }
 

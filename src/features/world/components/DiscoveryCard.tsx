@@ -1,5 +1,6 @@
 import PlaceSheet from '@/features/places/components/PlaceSheet'
-import { usePlaceExtras } from '@/features/places/usePlaceExtras'
+import { nearbyPlaces } from '@/features/places/nearby'
+import { usePlaceExtras } from '@/data/places'
 import type { DiscoveryPlace } from '@/features/world/model/types'
 import { cn } from '@/lib/cn'
 import { useMessages } from '@/lib/i18n/useMessages'
@@ -72,9 +73,13 @@ export default function DiscoveryCard({ place, shown, onClose, visitedOn = null,
           progress={place.progress ?? null}
           tabIndex={tab}
           scope={{ placeId: place.id, regionId: place.regionId ?? null, regionName: place.regionName ?? null }}
-          others={others
-            .filter((o) => o.id !== place.id && o.regionId === place.regionId)
-            .map((o) => ({ id: o.id, name: o.name, nameLatin: o.nameLatin, hero: o.hero ?? null }))}
+          others={nearbyPlaces(place, others.filter((o) => o.regionId === place.regionId)).map((o) => ({
+            id: o.id,
+            name: o.name,
+            nameLatin: o.nameLatin,
+            hero: o.hero ?? null,
+            distance: o.distance,
+          }))}
           onOpenOther={onOpenOther}
         />
         {place.activities.length > 0 && (

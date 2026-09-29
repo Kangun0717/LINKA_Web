@@ -2,7 +2,12 @@ import { createElement, lazy, type ComponentType } from 'react'
 
 type Module<P> = { default: ComponentType<P> }
 
-export type PreloadableComponent<P> = ComponentType<P> & { preload: () => Promise<unknown> }
+export type PreloadableComponent<P> = ComponentType<P> & {
+  /** Load now; rejects if the chunk cannot be fetched (and a later call tries again). */
+  preload: () => Promise<unknown>
+  /** Load ahead of need, quietly: a failure (offline, a navigation cancelling it) only means it is fetched when needed. */
+  warm: () => void
+}
 
 /**
  * `React.lazy`, plus a way to start loading before the component is needed.
@@ -18,9 +23,16 @@ export function lazyWithPreload<P extends object>(
   let pending: Promise<unknown> | null = null
 
   const preload = () =>
-    (pending ??= factory().then((module) => {
-      loaded = module.default
-    }))
+    (pending ??= factory().then(
+      (module) => {
+        loaded = module.default
+      },
+      (error: unknown) => {
+        // Not cached: the next render or preload fetches it again.
+        pending = null
+        throw error
+      },
+    ))
 
   const Lazy = lazy(() => preload().then(() => ({ default: loaded as ComponentType<P> })))
 
@@ -28,5 +40,5 @@ export function lazyWithPreload<P extends object>(
     return loaded ? createElement(loaded, props) : createElement(Lazy, props)
   }
 
-  return Object.assign(Preloadable, { preload })
+  return Object.assign(Preloadable, { preload, warm: () => void preload().catch(() => {}) })
 }

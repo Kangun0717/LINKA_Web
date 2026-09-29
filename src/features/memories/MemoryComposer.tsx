@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
+import { memorySaved, useMyMemories } from '@/data/journey'
 import { useAuth } from '@/features/auth/useAuth'
 import {
   addMemoryPhoto,
-  fetchMemoryForTouch,
   removeMemoryPhoto,
   saveMemory,
   signedPhotoUrls,
   type MemoryPhotoRow,
   type MemoryRecord,
+  type VisitRef,
 } from '@/features/memories/api'
 import PhotoViewer from '@/features/memories/PhotoViewer'
 import { cn } from '@/lib/cn'
@@ -16,9 +17,9 @@ import { MOOD_EMOJI, MOODS, type Mood } from '@/lib/i18n/journeyMessages'
 import { useMessages } from '@/lib/i18n/useMessages'
 
 type MemoryComposerProps = {
-  visit: { touchEventId: string; placeId: string }
+  /** The visit this memory belongs to — never a single touch. */
+  visit: VisitRef
   placeName: string
-  onSaved?: (memory: MemoryRecord) => void
 }
 
 type Upload = { key: string; file: File; preview: string; state: 'uploading' | 'failed' }
@@ -31,7 +32,7 @@ type Upload = { key: string; file: File; preview: string; state: 'uploading' | '
  * filled in for the user. Photos upload the moment they are chosen (into the
  * user's private folder) and can be opened full screen.
  */
-export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComposerProps) {
+export default function MemoryComposer({ visit, placeName }: MemoryComposerProps) {
   const copy = useMessages()
   const { user } = useAuth()
   const [memory, setMemory] = useState<MemoryRecord | null>(null)
@@ -44,23 +45,28 @@ export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComp
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [viewing, setViewing] = useState<MemoryPhotoRow | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  /** The user has typed or picked a mood: an arriving memory must not overwrite that. */
+  const [edited, setEdited] = useState(false)
 
-  // A repeat tap within the duplicate window returns the same visit: resume its memory.
-  useEffect(() => {
-    let active = true
-    fetchMemoryForTouch(visit.touchEventId).then(
-      (row) => {
-        if (!active || !row) return
-        setMemory(row)
-        setMood(row.mood ?? null)
-        setNote(row.note ?? '')
-      },
-      () => {},
-    )
-    return () => {
-      active = false
+  // Every touch at this place today — a repeat tap, another Touch Point, a
+  // reload — returns the same visit: resume its memory rather than start one.
+  // It comes from the user's memories (shared with Moments and Me), and is
+  // adopted once; from then on this form edits that row.
+  const { data: memories } = useMyMemories()
+  const known = memories?.find((m) => m.visit_id === visit.visitId) ?? null
+  if (known && memory === null) {
+    setMemory(known)
+    if (!edited) {
+      setMood(known.mood ?? null)
+      setNote(known.note ?? '')
     }
-  }, [visit.touchEventId])
+  }
+
+  /** Keep this memory and everyone showing it (Moments, Me) in step. */
+  function keep(next: MemoryRecord) {
+    setMemory(next)
+    if (user) memorySaved(user.id, next)
+  }
 
   const photos = memory?.memory_photos ?? []
   const photoPaths = photos.map((p) => p.storage_path).join('|')
@@ -75,9 +81,13 @@ export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComp
 
   async function persist(): Promise<MemoryRecord> {
     const saved = await saveMemory(memory, visit, { note, mood })
-    setMemory(saved.memory)
+    keep(saved.memory)
     setMoodSkipped(saved.moodSkipped)
-    onSaved?.(saved.memory)
+    if (saved.recovered) {
+      // The visit already had a memory this form had not loaded: show what it now holds.
+      setNote(saved.memory.note ?? '')
+      setMood(saved.memory.mood ?? null)
+    }
     return saved.memory
   }
 
@@ -99,9 +109,13 @@ export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComp
       // A photo belongs to a memory, so the memory is saved first (with the mood and note so far).
       const target = memory ?? (await persist())
       const photo = await addMemoryPhoto(target, user.id, file)
-      const next = { ...target, cover_photo_id: target.cover_photo_id ?? photo.id, memory_photos: [...target.memory_photos, photo] }
-      setMemory(next)
-      onSaved?.(next)
+      // From the latest state, not `target`: several photos may be uploading at once.
+      setMemory((current) => {
+        const base = current ?? target
+        const next = { ...base, cover_photo_id: base.cover_photo_id ?? photo.id, memory_photos: [...base.memory_photos, photo] }
+        if (user) memorySaved(user.id, next) // idempotent: replaces the row by id
+        return next
+      })
       setUploads((list) => {
         const done = list.find((u) => u.key === key)
         if (done) URL.revokeObjectURL(done.preview)
@@ -127,7 +141,10 @@ export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComp
   async function remove(photo: MemoryPhotoRow) {
     try {
       await removeMemoryPhoto(photo)
-      setMemory((m) => (m ? { ...m, memory_photos: m.memory_photos.filter((p) => p.id !== photo.id) } : m))
+      if (memory) {
+        const photos = memory.memory_photos.filter((p) => p.id !== photo.id)
+        keep({ ...memory, memory_photos: photos, cover_photo_id: memory.cover_photo_id === photo.id ? null : memory.cover_photo_id })
+      }
     } catch {
       setState('failed')
     }
@@ -148,6 +165,7 @@ export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComp
             aria-checked={mood === option}
             onClick={() => {
               setMood(mood === option ? null : option)
+              setEdited(true)
               setState('idle')
             }}
             className={cn(
@@ -180,6 +198,7 @@ export default function MemoryComposer({ visit, placeName, onSaved }: MemoryComp
         value={note}
         onChange={(event) => {
           setNote(event.target.value)
+          setEdited(true)
           setState('idle')
         }}
         maxLength={4000}

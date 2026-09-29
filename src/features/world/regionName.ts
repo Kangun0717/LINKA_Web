@@ -9,7 +9,6 @@ export function regionSecondName(
   region: { id: string; name: string; nameLatin: string },
   copy: Messages,
 ): string | null {
-  const known: Record<string, string> = { jp: copy.regions.japan, sado: copy.regions.sado }
-  const second = known[region.id] ?? region.nameLatin
+  const second = copy.regions[region.id] ?? region.nameLatin
   return second === region.name ? null : second
 }

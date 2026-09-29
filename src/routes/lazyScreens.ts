@@ -17,6 +17,9 @@ export const HomeScreen = lazyWithPreload(() => import('@/features/home/screens/
  */
 export const TouchScreen = lazyWithPreload(() => import('@/features/touch/TouchScreen'))
 
+/** The public Place page — what a shared link or a printed QR code opens. */
+export const PlaceScreen = lazyWithPreload(() => import('@/features/places/PlaceScreen'))
+
 const account = () => import('@/routes/accountScreens')
 export const AuthEntryScreen = lazyWithPreload(() => account().then((m) => ({ default: m.AuthEntryScreen })))
 export const SignUpScreen = lazyWithPreload(() => account().then((m) => ({ default: m.SignUpScreen })))
@@ -32,6 +35,7 @@ export const preloadAccount = () => AuthEntryScreen.preload()
 /** The journal and the personal page — reached from the navigation, so fetched on idle with My World. */
 export const MomentsScreen = lazyWithPreload(() => import('@/features/journey/MomentsScreen'))
 export const MeScreen = lazyWithPreload(() => import('@/features/journey/MeScreen'))
+export const MomentScreen = lazyWithPreload(() => import('@/features/journey/MomentScreen'))
 export const SuggestScreen = lazyWithPreload(() => import('@/features/journey/SuggestScreen'))
 
 /**
@@ -68,9 +72,11 @@ export function firstRouteReady(pathname: string): Promise<unknown> {
   // An account screen opened directly must not flash a fallback: wait for its chunk.
   if (pathname.startsWith('/auth') || pathname.startsWith('/onboarding')) return preloadAccount()
   if (pathname.startsWith('/t/')) return TouchScreen.preload()
+  if (pathname.startsWith('/place/')) return PlaceScreen.preload()
   if (MyWorldPreviewScreen && pathname.startsWith('/preview/')) return MyWorldPreviewScreen.preload()
-  if (pathname.startsWith('/home')) void HomeScreen.preload()
-  if (pathname.startsWith('/moments')) void MomentsScreen.preload()
-  if (pathname.startsWith('/me')) void MeScreen.preload()
+  if (pathname.startsWith('/home')) HomeScreen.warm()
+  if (pathname.startsWith('/moments/')) MomentScreen.warm()
+  else if (pathname.startsWith('/moments')) MomentsScreen.warm()
+  if (pathname.startsWith('/me')) MeScreen.warm()
   return Promise.resolve()
 }

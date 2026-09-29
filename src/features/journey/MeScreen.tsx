@@ -9,6 +9,7 @@ import { useJourney } from '@/features/journey/useJourney'
 import { COUNTRIES, flagOf } from '@/features/onboarding/data/nationalities'
 import { useProfileContext } from '@/features/onboarding/useProfileContext'
 import { normalizeStatus } from '@/features/suggest/api'
+import { worldHref, worldPathOf } from '@/features/world/geo/regions'
 import AppShell from '@/layouts/AppShell'
 import { cn } from '@/lib/cn'
 import { useLocale } from '@/lib/i18n/LocaleContext'
@@ -116,7 +117,7 @@ export default function MeScreen() {
                 <li key={region?.id ?? places[0].id}>
                   <button
                     type="button"
-                    onClick={() => navigate('/home?at=jp/sado')}
+                    onClick={() => navigate(worldHref(worldPathOf(region ?? places[0])))}
                     className="w-full rounded-xl bg-white/70 px-3.5 py-3 text-left ring-1 ring-graphite/[0.07]"
                   >
                     {region && (

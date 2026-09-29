@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { suggestionsChanged } from '@/data/journey'
 import { useAuth } from '@/features/auth/useAuth'
 import SignInGate from '@/features/journey/SignInGate'
 import { submitSuggestion } from '@/features/suggest/api'
@@ -21,7 +22,7 @@ export default function SuggestScreen() {
   const copy = useMessages()
   const { locale } = useLocale()
   const navigate = useNavigate()
-  const { session } = useAuth()
+  const { session, user } = useAuth()
   const [name, setName] = useState('')
   const [area, setArea] = useState('')
   const [reason, setReason] = useState('')
@@ -43,6 +44,7 @@ export default function SuggestScreen() {
     setState('sending')
     try {
       await submitSuggestion({ name, address: area, reason, referenceUrl: url || null, locale })
+      if (user) suggestionsChanged(user.id)
       setState('sent')
     } catch {
       setState('failed')

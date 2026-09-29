@@ -1,37 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
-import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
+import PaperButton from '@/components/ui/PaperButton'
+import { visitsChanged } from '@/data/journey'
+import { usePlaces } from '@/data/places'
 import { hasPassword } from '@/features/auth/api'
 import { useAuth } from '@/features/auth/useAuth'
 import type { HomeArrivalState } from '@/features/home/screens/HomeScreen'
 import MemoryComposer from '@/features/memories/MemoryComposer'
 import { isProfileComplete } from '@/features/onboarding/api'
 import { useProfileContext } from '@/features/onboarding/useProfileContext'
-import {
-  fetchMyTouches,
-  fetchPlaces,
-  recordTouch,
-  resolveTouchPoint,
-  type PlaceRecord,
-  type RecordedTouch,
-  type ResolvedTouchPoint,
-  type TouchRow,
-} from '@/features/places/api'
-import PlaceSheet, { type SheetProgress } from '@/features/places/components/PlaceSheet'
-import { localizePlace, type LocalizedPlace } from '@/features/places/localize'
-import { usePlaceExtras } from '@/features/places/usePlaceExtras'
+import { recordTouch, resolveTouchPoint, type RecordedTouch, type ResolvedTouchPoint } from '@/features/places/api'
+import { PlacePageShell, PlaceSkeleton, PlaceView } from '@/features/places/components/PlacePage'
+import { useVisitContext } from '@/features/places/useVisitContext'
 import { pendingTouch } from '@/features/touch/pendingTouch'
 import { cn } from '@/lib/cn'
-import { useLocale } from '@/lib/i18n/LocaleContext'
-import type { Locale } from '@/lib/i18n/locale'
 import { useMessages } from '@/lib/i18n/useMessages'
 import { nextStepFor } from '@/routes/nextStep'
 
 type Resolution =
   | { status: 'loading' }
   | { status: 'unavailable' }
-  | { status: 'found'; point: ResolvedTouchPoint; places: PlaceRecord[] }
+  | { status: 'found'; point: ResolvedTouchPoint }
   | { status: 'error' }
 
 /** A settled resolution, tagged with the Touch Point and viewer it was made for. */
@@ -47,8 +37,9 @@ type CheckIn =
  * /t/:publicTouchPointId — where a physical NFC tag opens LINKA.
  *
  * Place first. The page opens straight onto the place that was touched — its
- * photograph, its name, a short introduction — with no animation standing in
- * front of it. Then two honest paths:
+ * photograph, its name, a short introduction (the same Place presentation as
+ * /place/:slug) — with no animation standing in front of it. Then two honest
+ * paths:
  *
  *   Start my journey: create an account or log in; this Touch Point is
  *     remembered across the detour, and the visit is checked in on return.
@@ -57,7 +48,8 @@ type CheckIn =
  *     map, no visitor counted.
  *
  * Signed in, the Touch is recorded straight away through record_touch, which
- * decides who, where and when on the server. The tag only carries a URL;
+ * decides who, where and when on the server and returns the day's visit —
+ * the visit is what the memory below belongs to. The tag only carries a URL;
  * nothing here claims to verify the hardware.
  */
 export default function TouchScreen() {
@@ -65,13 +57,12 @@ export default function TouchScreen() {
   const navigate = useNavigate()
   const { session, user, loading: authLoading } = useAuth()
   const { profile, loading: profileLoading } = useProfileContext()
-  const { locale } = useLocale()
+  const { index, error: placesError } = usePlaces()
   const copy = useMessages()
 
   const [resolved, setResolved] = useState<Resolved | null>(null)
   const [checkIn, setCheckIn] = useState<CheckIn>({ status: 'idle' })
   const [exploring, setExploring] = useState(false)
-  const [touches, setTouches] = useState<TouchRow[] | null>(null)
 
   const userId = user?.id ?? null
   const resolutionKey = `${publicId}|${userId ?? ''}`
@@ -85,11 +76,9 @@ export default function TouchScreen() {
     if (authLoading) return
     let active = true
     const key = `${publicId}|${userId ?? ''}`
-    Promise.all([resolveTouchPoint(publicId), fetchPlaces()])
-      .then(([point, places]) => {
-        if (!active) return
-        const found = point && places.some((p) => p.id === point.place_id)
-        setResolved({ key, result: point && found ? { status: 'found', point, places } : { status: 'unavailable' } })
+    resolveTouchPoint(publicId)
+      .then((point) => {
+        if (active) setResolved({ key, result: point ? { status: 'found', point } : { status: 'unavailable' } })
       })
       .catch(() => {
         if (active) setResolved({ key, result: { status: 'error' } })
@@ -99,16 +88,6 @@ export default function TouchScreen() {
     }
   }, [publicId, userId, authLoading])
 
-  // The user's own touches, for "visited" and the region's progress.
-  useEffect(() => {
-    if (!isAccountReady) return
-    let active = true
-    fetchMyTouches().then((rows) => active && setTouches(rows), () => {})
-    return () => {
-      active = false
-    }
-  }, [isAccountReady, checkIn.status])
-
   // Record the Touch exactly once per Touch Point and account.
   const recordedFor = useRef<string | null>(null)
   const record = useCallback(() => {
@@ -116,11 +95,12 @@ export default function TouchScreen() {
     recordTouch(publicId).then(
       (touch) => {
         pendingTouch.clear()
+        if (userId) visitsChanged(userId)
         setCheckIn({ status: 'done', touch })
       },
       () => setCheckIn({ status: 'failed' }),
     )
-  }, [publicId])
+  }, [publicId, userId])
 
   const isFound = resolution.status === 'found'
   useEffect(() => {
@@ -131,15 +111,9 @@ export default function TouchScreen() {
     record()
   }, [isFound, isAccountReady, userId, publicId, record])
 
-  const view = useMemo(() => {
-    const result = resolved && resolved.key === resolutionKey ? resolved.result : null
-    if (result?.status !== 'found') return null
-    const all = result.places.map((p) => localizePlace(p, locale))
-    const place = all.find((p) => p.id === result.point.place_id)!
-    return { place, region: all.find((p) => p.id === place.parentId) ?? null, all }
-  }, [resolved, resolutionKey, locale])
-
-  const extras = usePlaceExtras(view?.place.id ?? null, view?.region?.id ?? null)
+  const place = resolution.status === 'found' ? index?.byId.get(resolution.point.place_id) ?? null : null
+  const touch = checkIn.status === 'done' ? checkIn.touch : null
+  const visit = useVisitContext(place, index, touch && { placeId: touch.place_id, localDate: touch.local_date })
 
   // Signed in but the account is not finished (password, nickname): finish it,
   // then come straight back here.
@@ -155,12 +129,13 @@ export default function TouchScreen() {
     navigate(to)
   }
 
-  const busy = authLoading || resolution.status === 'loading' || (session && profileLoading)
+  const failed = resolution.status === 'error' || (resolution.status === 'found' && placesError !== null && !index)
+  const busy = authLoading || (session && profileLoading) || (!failed && (resolution.status === 'loading' || (isFound && !index)))
 
-  if (busy || !view) {
-    const unavailable = !busy && (resolution.status === 'unavailable' || resolution.status === 'error')
+  if (busy || !place || !index) {
+    const unavailable = !busy && (resolution.status === 'unavailable' || failed || (isFound && !place))
     return (
-      <Shell>
+      <PlacePageShell>
         <Detected />
         {unavailable ? (
           <div className="px-5 pt-10">
@@ -168,7 +143,7 @@ export default function TouchScreen() {
               {session ? copy.touch.unavailableTitle : copy.touch.signInTitle}
             </h1>
             <p className="mt-3 text-[0.84rem] font-light leading-relaxed text-graphite-soft">
-              {resolution.status === 'error' ? copy.touch.failed : session ? copy.touch.unavailableBody : copy.touch.signInBody}
+              {failed ? copy.touch.failed : session ? copy.touch.unavailableBody : copy.touch.signInBody}
             </p>
             <div className="mt-8 space-y-3">
               {session ? (
@@ -176,7 +151,7 @@ export default function TouchScreen() {
               ) : (
                 <>
                   <PaperButton onClick={() => go('/auth/signup')}>{copy.landing.startAction}</PaperButton>
-                  <PaperButton quiet onClick={() => navigate('/home?at=jp/sado')}>
+                  <PaperButton quiet onClick={() => navigate('/home')}>
                     {copy.landing.exploreMap}
                   </PaperButton>
                   <LogInLink onClick={() => go('/auth/signin')} />
@@ -185,36 +160,22 @@ export default function TouchScreen() {
             </div>
           </div>
         ) : (
-          <Skeleton label={copy.touch.opening} />
+          <PlaceSkeleton label={copy.touch.opening} />
         )}
-      </Shell>
+      </PlacePageShell>
     )
   }
 
-  const touch = checkIn.status === 'done' ? checkIn.touch : null
-  const visitedOn =
-    touch?.local_date ??
-    touches?.find((t) => t.place_id === view.place.id)?.local_date ??
-    null
-  const progress = progressFor(view, touches, touch, locale)
   const signedIn = Boolean(session)
 
   return (
-    <Shell>
-      <PlaceSheet
-        place={view.place}
-        visitedOn={visitedOn}
-        extras={extras}
-        progress={signedIn ? progress : null}
-        heroPriority
+    <PlacePageShell>
+      <PlaceView
+        place={place}
+        index={index}
+        visit={signedIn ? visit : null}
         compact={!signedIn && !exploring}
-        scope={{
-          placeId: view.place.id,
-          regionId: view.region?.id ?? null,
-          regionName: view.region ? (locale === 'ja' || locale === 'zh-Hans' ? view.region.name : view.region.nameLatin) : null,
-        }}
-        others={view.all.filter((p) => p.discoverable && p.id !== view.place.id && p.parentId === view.place.parentId)}
-        onOpenOther={(id) => navigate(`/home?at=jp/sado&place=${encodeURIComponent(id)}`)}
+        onOpenPlace={(other) => navigate(`/place/${other.slug}`)}
       >
         <Detected inline />
 
@@ -225,7 +186,7 @@ export default function TouchScreen() {
             {copy.landing.infoOnly}
           </p>
         ) : null}
-      </PlaceSheet>
+      </PlaceView>
 
       <div className="space-y-4 px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-6">
         {!signedIn && (
@@ -255,7 +216,12 @@ export default function TouchScreen() {
 
         {touch && (
           <>
-            <MemoryComposer visit={{ touchEventId: touch.touch_event_id, placeId: touch.place_id }} placeName={view.place.name} />
+            {/* Keyed by the visit: a later touch of another visit must never inherit this one's form. */}
+            <MemoryComposer
+              key={touch.visit_id}
+              visit={{ visitId: touch.visit_id, placeId: touch.place_id }}
+              placeName={place.name}
+            />
             <PaperButton
               onClick={() =>
                 navigate('/home', { replace: true, state: { arrivalPlaceId: touch.place_id } satisfies HomeArrivalState })
@@ -266,27 +232,8 @@ export default function TouchScreen() {
           </>
         )}
       </div>
-    </Shell>
+    </PlacePageShell>
   )
-}
-
-/** "Exploring Sado 1 / 5" — the denominator is the region's published, discoverable places. */
-function progressFor(
-  view: { place: LocalizedPlace; region: LocalizedPlace | null; all: LocalizedPlace[] },
-  touches: TouchRow[] | null,
-  touch: RecordedTouch | null,
-  locale: Locale,
-): SheetProgress {
-  if (!view.region) return null
-  const region = view.region
-  const inRegion = view.all.filter((p) => p.parentId === region.id && p.discoverable)
-  const visited = new Set((touches ?? []).map((t) => t.place_id))
-  if (touch) visited.add(touch.place_id)
-  return {
-    region: locale === 'ja' ? region.name : region.nameLatin,
-    visited: inRegion.filter((p) => visited.has(p.id)).length,
-    total: inRegion.length,
-  }
 }
 
 function CheckInStatus({ checkIn, onRetry }: { checkIn: CheckIn; onRetry: () => void }) {
@@ -377,46 +324,5 @@ function LogInLink({ onClick }: { onClick: () => void }) {
         {copy.landing.logIn}
       </button>
     </p>
-  )
-}
-
-function Skeleton({ label }: { label: string }) {
-  return (
-    <div role="status" aria-label={label} className="animate-pulse motion-reduce:animate-none">
-      <div className="mt-4 aspect-[16/10] w-full bg-graphite/[0.06]" />
-      <div className="px-5 pt-5">
-        <div className="h-6 w-40 rounded bg-graphite/[0.08]" />
-        <div className="mt-2 h-3 w-28 rounded bg-graphite/[0.06]" />
-        <div className="mt-6 h-3 w-full rounded bg-graphite/[0.05]" />
-        <div className="mt-2 h-3 w-5/6 rounded bg-graphite/[0.05]" />
-      </div>
-    </div>
-  )
-}
-
-/** The Door's paper, with the language in the corner. */
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <main className="relative min-h-dvh w-full bg-paper-lit pt-[env(safe-area-inset-top)]">
-      <div className="relative mx-auto w-full max-w-md">
-        <LanguageSwitcher className="absolute right-2 top-2 z-10 rounded-full bg-paper-lit/80 backdrop-blur-sm" />
-        {children}
-      </div>
-    </main>
-  )
-}
-
-function PaperButton({ children, onClick, quiet = false }: { children: ReactNode; onClick: () => void; quiet?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex h-13 w-full items-center justify-center rounded-full text-[0.9rem] tracking-[0.04em] outline-none transition-colors duration-300 ease-calm focus-visible:ring-2 focus-visible:ring-graphite/40',
-        quiet ? 'text-graphite ring-1 ring-graphite/20 hover:bg-graphite/[0.04]' : 'bg-graphite text-paper-lit hover:bg-graphite/90',
-      )}
-    >
-      {children}
-    </button>
   )
 }

@@ -41,38 +41,35 @@ export type PlaceRecord = Pick<
 // picked up — and its absence before then is not an error.
 const PLACE_COLUMNS = '*, place_translations(*), place_sources(url, publisher, covers, checked_at)'
 
-let placesRequest: Promise<PlaceRecord[]> | null = null
-
 /**
  * Every published place, with all its translations — so switching language
- * never needs another request. Cached for the session; it changes rarely.
+ * never needs another request. Cached for the session by `usePlaces`
+ * (src/data/places.ts); call that, not this, from screens.
  */
-export function fetchPlaces(): Promise<PlaceRecord[]> {
-  placesRequest ??= getSupabase()
-    .then((supabase) => supabase.from('places').select(PLACE_COLUMNS).order('slug'))
-    .then(({ data, error }) => {
-      if (error) throw error
-      return data as unknown as PlaceRecord[]
-    })
-    .catch((error: unknown) => {
-      placesRequest = null
-      throw error
-    })
-
-  return placesRequest
+export async function fetchPlaces(): Promise<PlaceRecord[]> {
+  const { data, error } = await (await getSupabase()).from('places').select(PLACE_COLUMNS).order('slug')
+  if (error) throw error
+  return data as unknown as PlaceRecord[]
 }
 
-export type TouchRow = Pick<
-  Tables<'touch_events'>,
-  'id' | 'place_id' | 'touchpoint_id' | 'touched_at' | 'local_date' | 'is_test'
+// Touch events are evidence and analytics, not something a person is shown:
+// the app reads visits. Nothing here reads touch_events any more.
+
+export type VisitRow = Pick<
+  Tables<'visits'>,
+  'id' | 'place_id' | 'local_date' | 'first_touched_at' | 'last_touched_at' | 'is_test'
 >
 
-/** The signed-in user's own touches, oldest first. RLS returns nobody else's. */
-export async function fetchMyTouches(): Promise<TouchRow[]> {
+/**
+ * The signed-in user's own visits — one per place per local day, however many
+ * Touch Points they tapped there — oldest first. RLS returns nobody else's.
+ */
+export async function fetchMyVisits(): Promise<VisitRow[]> {
   const { data, error } = await (await getSupabase())
-    .from('touch_events')
-    .select('id, place_id, touchpoint_id, touched_at, local_date, is_test')
-    .order('touched_at')
+    .from('visits')
+    .select('id, place_id, local_date, first_touched_at, last_touched_at, is_test')
+    .order('local_date')
+    .order('first_touched_at')
 
   if (error) throw error
   return data
@@ -98,6 +95,10 @@ export type RecordedTouch = Database['public']['Functions']['record_touch']['Ret
  * Record a Touch for the signed-in user. The server derives who, where and
  * when; the client only says which Touch Point URL it opened. A repeat tap
  * within ten minutes returns the same event with `duplicate: true`.
+ *
+ * `visit_id` is the day's visit to this place, created or extended by the
+ * server: every Touch Point there that day returns the same one, and the
+ * visit — not the touch — is what a memory belongs to.
  */
 export async function recordTouch(publicId: string): Promise<RecordedTouch> {
   const { data, error } = await (await getSupabase()).rpc('record_touch', { p_public_id: publicId })
