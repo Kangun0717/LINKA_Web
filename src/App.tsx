@@ -27,10 +27,16 @@ import {
   MomentScreen,
   MomentsScreen,
   MyWorldPreviewScreen,
+  PastMemoryScreen,
   PlaceScreen,
-  SuggestScreen,
+  Preview4CScreen,
+  CommunityScreen,
+  SuggestionScreen,
+  SuggestionsScreen,
+  SuggestPlaceScreen,
   TouchScreen,
 } from '@/routes/lazyScreens'
+import ReturnSync from '@/routes/ReturnSync'
 
 /** The world's own surface while its chunk arrives — never a dark flash. */
 const worldFallback = <div className="h-dvh bg-canvas" />
@@ -62,6 +68,7 @@ export default function App() {
       <ProfileProvider>
         <LocaleProvider>
           <SurfaceSync />
+          <ReturnSync />
           <Suspense fallback={pageFallback}>
             <Routes>
               <Route path="/" element={<DoorExperience />} />
@@ -108,7 +115,7 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* Open to guests too: the public map, and Moments / Me (which gate a guest). */}
+              {/* Open to guests too: the public map and Community, and Moments / Me (which gate a guest). */}
               <Route element={<MemberOrGuest />}>
                 <Route
                   path="/home"
@@ -143,10 +150,54 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/me/suggest"
+                  path="/moments/new"
                   element={
                     <Suspense fallback={pageFallback}>
-                      <SuggestScreen />
+                      <PastMemoryScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/moments/:id/edit"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <PastMemoryScreen />
+                    </Suspense>
+                  }
+                />
+                {/* The old entry to suggesting a place: now Community's own flow. */}
+                <Route path="/me/suggest" element={<Navigate to="/community/suggest" replace />} />
+
+                {/* Community: public to read; supporting and suggesting ask for an account. */}
+                <Route
+                  path="/community"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <CommunityScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/community/suggestions"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <SuggestionsScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/community/suggestions/:id"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <SuggestionScreen />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/community/suggest"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <SuggestPlaceScreen />
                     </Suspense>
                   }
                 />
@@ -162,6 +213,17 @@ export default function App() {
                   element={
                     <Suspense fallback={pageFallback}>
                       <EmergencyDemoScreen />
+                    </Suspense>
+                  }
+                />
+              )}
+
+              {Preview4CScreen && (
+                <Route
+                  path="/preview/4c/*"
+                  element={
+                    <Suspense fallback={pageFallback}>
+                      <Preview4CScreen />
                     </Suspense>
                   }
                 />

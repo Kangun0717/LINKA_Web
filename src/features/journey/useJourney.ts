@@ -18,7 +18,7 @@ export type JourneyView = {
   reload: () => void
 }
 
-const NO_STATS: Journey['stats'] = { places: 0, regions: 0, memories: 0, photos: 0 }
+const NO_STATS: Journey['stats'] = { places: 0, regions: 0, memories: 0, photos: 0, pastMemories: 0, journalPlaces: 0 }
 
 /**
  * Moments and Me, read from the one journey model (src/data/journey.ts).

@@ -24,8 +24,9 @@ const AUTH_KEY = 'sb-127-auth-token'
  * collected, and every record_touch result and memory insert is recorded so
  * tests can follow a visit from the server's answer to what the app sent.
  */
-export async function visitor(browser, { email = null, locale = 'en', reducedMotion = 'no-preference', name = BROWSER } = {}) {
-  const context = await browser.newContext({ ...deviceFor(name), locale: locale === 'ja' ? 'ja-JP' : 'en-US', reducedMotion })
+export async function visitor(browser, { email = null, locale = 'en', reducedMotion = 'no-preference', name = BROWSER, viewport = null } = {}) {
+  const device = viewport ? { ...deviceFor(name), viewport } : deviceFor(name)
+  const context = await browser.newContext({ ...device, locale: locale === 'ja' ? 'ja-JP' : 'en-US', reducedMotion })
   await context.addInitScript(([key, session, lang]) => {
     if (!window.localStorage.getItem('linka.locale')) window.localStorage.setItem('linka.locale', lang)
     // Only on the very first document: signing out must stay signed out.
@@ -36,10 +37,20 @@ export async function visitor(browser, { email = null, locale = 'en', reducedMot
   }, [AUTH_KEY, email ? JSON.stringify(sessionOf(email)) : null, locale])
   const page = await context.newPage()
   const errors = []
+  const consoleErrors = []
   const touches = []
   const inserts = []
   const requests = []
   page.on('pageerror', (error) => errors.push(error.message))
+  // Scripts and API requests still in flight (the app fetches chunks ahead of
+  // need, on idle, and data as pages open). Navigating away cancels them,
+  // which WebKit reports as a console error ("… due to access control
+  // checks"); `go` waits for them first, so the console check stays strict.
+  const scripts = new Set()
+  page.on('request', (request) => (request.url().endsWith('.js') || /\/(rest|storage)\/v1\//.test(request.url())) && scripts.add(request))
+  page.on('requestfinished', (request) => scripts.delete(request))
+  page.on('requestfailed', (request) => scripts.delete(request))
+  page.on('console', (message) => message.type() === 'error' && consoleErrors.push(message.text()))
   page.on('request', (request) => {
     const url = request.url()
     if (url.includes('/rest/v1/') || url.includes('/storage/v1/') || url.includes('/auth/v1/')) {
@@ -56,5 +67,13 @@ export async function visitor(browser, { email = null, locale = 'en', reducedMot
       }
     }
   })
-  return { context, page, errors, touches, inserts, requests, go: (path) => page.goto(`${APP_URL}${path}`) }
+  const go = async (path) => {
+    // Quiet for 300 ms: a page that has just opened may not have asked for its data yet.
+    for (let waited = 0, quiet = 0; quiet < 300 && waited < 8000; waited += 50) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      quiet = scripts.size === 0 ? quiet + 50 : 0
+    }
+    return page.goto(`${APP_URL}${path}`)
+  }
+  return { context, page, errors, consoleErrors, touches, inserts, requests, go }
 }

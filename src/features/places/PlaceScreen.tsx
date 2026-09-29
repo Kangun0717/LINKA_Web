@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import PaperButton from '@/components/ui/PaperButton'
@@ -8,6 +8,9 @@ import { PlacePageShell, PlaceSkeleton, PlaceView } from '@/features/places/comp
 import { useVisitContext } from '@/features/places/useVisitContext'
 import { worldHref, worldPathOf } from '@/features/world/geo/regions'
 import { useMessages } from '@/lib/i18n/useMessages'
+
+/** Community context and the reader's own journal: after the page, in its own chunk. */
+const PlaceCommunity = lazy(() => import('@/features/places/components/PlaceCommunity'))
 
 /**
  * /place/:slug — the canonical public page of a LINKA place.
@@ -76,6 +79,9 @@ export default function PlaceScreen() {
         visit={session ? visit : null}
         onOpenPlace={(other) => navigate(`/place/${other.slug}`)}
       />
+      <Suspense fallback={null}>
+        <PlaceCommunity placeId={place.id} slug={place.slug} visitedOn={session ? (visit?.visitedOn ?? null) : null} />
+      </Suspense>
       <div className="px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-6">
         <PaperButton quiet onClick={() => navigate(worldHref(worldPathOf(place), place.slug))}>
           {copy.landing.exploreMap}

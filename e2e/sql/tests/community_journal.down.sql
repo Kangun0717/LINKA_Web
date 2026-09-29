@@ -1,0 +1,22 @@
+-- After the down-migration: the schema is as before 4C.
+select t.ok(not exists (select 1 from information_schema.columns where table_name = 'memories' and column_name in ('kind', 'place_label', 'remembered_on', 'date_precision')), 'down: memories columns removed');
+select t.ok((select is_nullable from information_schema.columns where table_name = 'memories' and column_name = 'visit_id') = 'NO', 'down: memories.visit_id required again');
+select t.ok((select is_nullable from information_schema.columns where table_name = 'memories' and column_name = 'place_id') = 'NO', 'down: memories.place_id required again');
+select t.ok(to_regclass('public.place_suggestion_supports') is null and to_regclass('public.place_suggestion_photos') is null and to_regclass('public.place_suggestion_events') is null, 'down: community tables removed');
+select t.ok(not exists (select 1 from information_schema.columns where table_name = 'place_suggestions' and column_name in ('attribution', 'public_area', 'public_reason', 'support_count')), 'down: suggestion columns removed');
+select t.ok(not exists (select 1 from pg_proc where proname in ('community_suggestions', 'withdraw_suggestion', 'suggestion_accepts_support', 'suggestion_support_open', 'place_suggestion_guard', 'place_suggestion_support_guard', 'community_rate_limit')), 'down: functions removed');
+select t.ok((select count(*) from place_suggestions) > 0, 'down: suggestions themselves kept');
+select t.ok(to_regclass('public.community_rate_limits') is null and to_regclass('public.community_action_log') is null, 'down: rate-limit tables removed');
+select t.ok(not exists (select 1 from pg_trigger where tgrelid = 'public.place_suggestions'::regclass and tgname in ('place_suggestions_guard', 'place_suggestions_rate_limit')), 'down: no 4C trigger left on place_suggestions');
+select t.ok((select count(*) from place_suggestions where reason = 'Ruins like a castle in the green.') = 1, 'down: the original reason survives');
+select t.ok(exists (select 1 from pg_policies where tablename = 'memories' and policyname = 'Users update own memories'), 'down: memory update policy restored');
+select t.as_user('22222222-2222-4222-8222-222222222222');
+set role authenticated;
+update memories set note = 'still editable';
+select t.ok((select note from memories) = 'still editable', 'down: verified memories still editable');
+reset role;
+select t.as_user('11111111-1111-4111-8111-111111111111');
+set role authenticated;
+insert into place_suggestions (name, address, reason) values ('After rollback', 'Sado', 'still works');
+reset role;
+select t.ok((select count(*) from place_suggestions where name = 'After rollback') = 1, 'down: submitting still works (no dangling trigger)');

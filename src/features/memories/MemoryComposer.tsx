@@ -20,6 +20,8 @@ type MemoryComposerProps = {
   /** The visit this memory belongs to — never a single touch. */
   visit: VisitRef
   placeName: string
+  /** The Moment page manages photos itself (MemoryPhotos); the Touch flow keeps them here. */
+  withPhotos?: boolean
 }
 
 type Upload = { key: string; file: File; preview: string; state: 'uploading' | 'failed' }
@@ -32,7 +34,7 @@ type Upload = { key: string; file: File; preview: string; state: 'uploading' | '
  * filled in for the user. Photos upload the moment they are chosen (into the
  * user's private folder) and can be opened full screen.
  */
-export default function MemoryComposer({ visit, placeName }: MemoryComposerProps) {
+export default function MemoryComposer({ visit, placeName, withPhotos = true }: MemoryComposerProps) {
   const copy = useMessages()
   const { user } = useAuth()
   const [memory, setMemory] = useState<MemoryRecord | null>(null)
@@ -207,6 +209,7 @@ export default function MemoryComposer({ visit, placeName }: MemoryComposerProps
         className="mt-1.5 block w-full resize-none rounded-xl bg-paper-lit px-3 py-2.5 text-[16px] font-light leading-relaxed text-graphite outline-none ring-1 ring-graphite/10 placeholder:text-graphite-faint focus:ring-graphite/30"
       />
 
+      {withPhotos && (
       <div className="mt-3 flex flex-wrap gap-2">
         {photos.map((photo) => (
           <div key={photo.id} className="relative">
@@ -261,6 +264,7 @@ export default function MemoryComposer({ visit, placeName }: MemoryComposerProps
           />
         </label>
       </div>
+      )}
       {uploads.some((u) => u.state === 'failed') && (
         <p role="alert" className="mt-2 text-[0.66rem] text-[#a0442c]">{copy.memory.uploadFailed}</p>
       )}

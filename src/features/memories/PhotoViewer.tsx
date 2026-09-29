@@ -9,6 +9,8 @@ type PhotoViewerProps = {
   width: number
   height: number
   onClose: () => void
+  /** Several photos: the one shown, how many, and the way to the others. */
+  nav?: { index: number; count: number; label: string; onPrev: () => void; onNext: () => void }
 }
 
 /**
@@ -19,15 +21,17 @@ type PhotoViewerProps = {
  * swipe — the ways a phone expects. The page underneath does not scroll or
  * navigate while it is open.
  */
-export default function PhotoViewer({ src, alt, width, height, onClose }: PhotoViewerProps) {
+export default function PhotoViewer({ src, alt, width, height, onClose, nav }: PhotoViewerProps) {
   const copy = useMessages()
   const closeRef = useRef<HTMLButtonElement>(null)
   const [drag, setDrag] = useState(0)
   const startY = useRef<number | null>(null)
   // The latest onClose, without re-running the effect (which owns a history entry).
   const onCloseRef = useRef(onClose)
+  const navRef = useRef(nav)
   useEffect(() => {
     onCloseRef.current = onClose
+    navRef.current = nav
   })
 
   useEffect(() => {
@@ -38,7 +42,11 @@ export default function PhotoViewer({ src, alt, width, height, onClose }: PhotoV
     // Back closes the photo instead of leaving the page.
     window.history.pushState({ ...window.history.state, linkaPhoto: true }, '')
     const onPop = () => onCloseRef.current()
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && window.history.back()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') window.history.back()
+      if (event.key === 'ArrowLeft') navRef.current?.onPrev()
+      if (event.key === 'ArrowRight') navRef.current?.onNext()
+    }
     window.addEventListener('popstate', onPop)
     window.addEventListener('keydown', onKey)
     return () => {
@@ -67,6 +75,7 @@ export default function PhotoViewer({ src, alt, width, height, onClose }: PhotoV
       }}
     >
       <img
+        key={src}
         src={src}
         alt={alt}
         width={width}
@@ -75,6 +84,21 @@ export default function PhotoViewer({ src, alt, width, height, onClose }: PhotoV
         className="max-h-[88dvh] max-w-[96vw] object-contain select-none"
         style={{ transform: `translateY(${drag}px)`, transition: drag === 0 ? 'transform 200ms ease-out' : 'none' }}
       />
+      {nav && nav.count > 1 && (
+        <>
+          <p className="absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] text-center text-[0.7rem] tabular-nums tracking-[0.1em] text-white/75">{nav.label}</p>
+          {nav.index > 0 && (
+            <button type="button" onClick={nav.onPrev} aria-label="‹" className="absolute left-2 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-[1.1rem] text-white">
+              ‹
+            </button>
+          )}
+          {nav.index < nav.count - 1 && (
+            <button type="button" onClick={nav.onNext} aria-label="›" className="absolute right-2 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-[1.1rem] text-white">
+              ›
+            </button>
+          )}
+        </>
+      )}
       <button
         ref={closeRef}
         type="button"

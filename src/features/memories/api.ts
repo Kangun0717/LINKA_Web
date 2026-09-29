@@ -1,4 +1,5 @@
 import { onPrivateReset } from '@/data/store'
+import { preparePhoto, randomName, thumbPathOf } from '@/features/memories/photos'
 import type { Mood } from '@/lib/i18n/journeyMessages'
 import { getSupabase } from '@/lib/supabase'
 import type { Tables, TablesUpdate } from '@/types/database.types'
@@ -14,13 +15,32 @@ import type { Tables, TablesUpdate } from '@/types/database.types'
 export type MemoryPhotoRow = Pick<Tables<'memory_photos'>, 'id' | 'storage_path' | 'width' | 'height' | 'position'>
 
 /**
- * One memory per visit (the database enforces it). `touch_event_id` is only
- * set on memories created before visits existed; it stays readable, but
- * nothing new is keyed by it.
+ * A memory is one of two kinds, never confused:
+ *
+ *   visit — the memory of a verified Visit (one per visit; the database
+ *           enforces it). Its date is the visit's local date.
+ *   past  — a journal entry: a place and a time the person records
+ *           themselves, with no visit. It can never colour the map, count as
+ *           a verified place or reach analytics — the database gives it no
+ *           visit and no way to gain one (`kind` is not updatable).
+ *
+ * `touch_event_id` is only set on memories created before visits existed; it
+ * stays readable, but nothing new is keyed by it.
  */
 export type MemoryRecord = Pick<
   Tables<'memories'>,
-  'id' | 'note' | 'place_id' | 'visit_id' | 'touch_event_id' | 'cover_photo_id' | 'created_at' | 'updated_at'
+  | 'id'
+  | 'note'
+  | 'place_id'
+  | 'visit_id'
+  | 'touch_event_id'
+  | 'cover_photo_id'
+  | 'created_at'
+  | 'updated_at'
+  | 'kind'
+  | 'place_label'
+  | 'remembered_on'
+  | 'date_precision'
 > & {
   /** Present once the mood migration is applied. */
   mood?: Mood | null
@@ -127,96 +147,34 @@ export async function saveMemory(
 }
 
 const BUCKET = 'memory-photos'
-const MAX_EDGE = 2048
-
-/** Load a picked file into an <img>, the way Safari handles most reliably. */
-async function loadImage(file: File): Promise<{ image: HTMLImageElement; revoke: () => void }> {
-  const url = URL.createObjectURL(file)
-  const image = new Image()
-  image.decoding = 'async'
-  try {
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve()
-      image.onerror = () => reject(new Error('This photo could not be read.'))
-      image.src = url
-    })
-    return { image, revoke: () => URL.revokeObjectURL(url) }
-  } catch (error) {
-    URL.revokeObjectURL(url)
-    throw error
-  }
-}
-
-async function encode(image: HTMLImageElement, maxEdge: number): Promise<{ blob: Blob; width: number; height: number } | null> {
-  const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight))
-  const width = Math.max(1, Math.round(image.naturalWidth * scale))
-  const height = Math.max(1, Math.round(image.naturalHeight * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d')
-  if (!context) return null
-  context.drawImage(image, 0, 0, width, height)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))
-  // Give the canvas memory back at once; iOS keeps a tight budget for canvases.
-  canvas.width = 0
-  canvas.height = 0
-  return blob ? { blob, width, height } : null
-}
 
 /**
- * A photo from the phone, made ready to keep: upright (browsers apply the
- * EXIF orientation when drawing), at most 2048 px on its long edge,
- * re-encoded as JPEG. Drawing through a canvas keeps only the pixels — EXIF,
- * including GPS location, does not survive.
- *
- * iPhone photos arrive as JPEG (Safari converts HEIC for uploads) or as HEIC,
- * which Safari can also decode. If the full-size encode fails under iOS
- * memory limits, it tries again smaller rather than giving up.
+ * Upload one photo into the user's own folder and attach it to the memory:
+ * the photo (EXIF stripped on this device) and, next to it, a thumbnail for
+ * lists and the map. Becomes the cover if the memory has none.
  */
-async function preparePhoto(file: File): Promise<{ blob: Blob; width: number; height: number }> {
-  const { image, revoke } = await loadImage(file)
-  try {
-    for (const edge of [MAX_EDGE, 1600, 1024]) {
-      const result = await encode(image, edge)
-      if (result) return result
-    }
-    throw new Error('This photo could not be prepared.')
-  } finally {
-    revoke()
-  }
-}
-
-/**
- * A random file name. `crypto.randomUUID` is missing on plain-HTTP pages
- * (such as a phone opening the dev server on the LAN), so it is built from
- * `getRandomValues`, which works everywhere.
- */
-function randomName(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-/** Upload one photo into the user's own folder and attach it to the memory. */
 export async function addMemoryPhoto(
   memory: MemoryRecord,
   userId: string,
   file: File,
+  position = memory.memory_photos.length,
 ): Promise<MemoryPhotoRow> {
   const supabase = await getSupabase()
-  const { blob, width, height } = await preparePhoto(file)
+  const { blob, width, height, thumb } = await preparePhoto(file)
   const path = `${userId}/${memory.id}/${randomName()}.jpg`
 
   const upload = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false })
   if (upload.error) throw upload.error
+  // The thumbnail is a convenience: without it, lists show the photo itself.
+  if (thumb) await supabase.storage.from(BUCKET).upload(thumbPathOf(path), thumb, { contentType: 'image/jpeg', upsert: false }).catch(() => {})
 
   const { data, error } = await supabase
     .from('memory_photos')
-    .insert({ memory_id: memory.id, storage_path: path, width, height, position: memory.memory_photos.length })
+    .insert({ memory_id: memory.id, storage_path: path, width, height, position })
     .select('id, storage_path, width, height, position')
     .single()
   if (error) {
-    await supabase.storage.from(BUCKET).remove([path])
+    await supabase.storage.from(BUCKET).remove([path, thumbPathOf(path)])
     throw error
   }
 
@@ -230,7 +188,69 @@ export async function removeMemoryPhoto(photo: MemoryPhotoRow): Promise<void> {
   const supabase = await getSupabase()
   const { error } = await supabase.from('memory_photos').delete().eq('id', photo.id)
   if (error) throw error
-  await supabase.storage.from(BUCKET).remove([photo.storage_path])
+  await supabase.storage.from(BUCKET).remove([photo.storage_path, thumbPathOf(photo.storage_path)])
+}
+
+/** The photo shown first, in lists and on the map. */
+export async function setCover(memory: MemoryRecord, photoId: string): Promise<void> {
+  const { error } = await (await getSupabase()).from('memories').update({ cover_photo_id: photoId }).eq('id', memory.id)
+  if (error) throw error
+}
+
+/** The order photos are shown in (`position` is the only photo field a user may change, with alt). */
+export async function reorderPhotos(photos: readonly MemoryPhotoRow[]): Promise<void> {
+  const supabase = await getSupabase()
+  const moved = photos.map((photo, position) => ({ photo, position })).filter(({ photo, position }) => photo.position !== position)
+  const results = await Promise.all(moved.map(({ photo, position }) => supabase.from('memory_photos').update({ position }).eq('id', photo.id)))
+  const failed = results.find((r) => r.error)
+  if (failed?.error) throw failed.error
+}
+
+export type PastMemoryInput = {
+  /** A published LINKA place, or null with the person's own words in `placeLabel`. */
+  placeId: string | null
+  placeLabel: string | null
+  /** YYYY-MM-DD; a month or year is stored as its first day, with its precision. */
+  rememberedOn: string | null
+  precision: 'day' | 'month' | 'year'
+  note: string
+  mood: Mood | null
+}
+
+/**
+ * Create or update a past journal entry. It is written with `kind = 'past'`
+ * and no visit — the one shape the database accepts for it — so it can
+ * never become verified presence.
+ */
+export async function savePastMemory(existing: MemoryRecord | null, input: PastMemoryInput): Promise<MemoryRecord> {
+  const supabase = await getSupabase()
+  const fields = {
+    place_id: input.placeId,
+    place_label: input.placeId ? null : input.placeLabel?.trim() || null,
+    remembered_on: input.rememberedOn,
+    date_precision: input.precision,
+    note: input.note.trim() || null,
+    mood: input.mood,
+  }
+  const query = existing
+    ? supabase.from('memories').update(fields).eq('id', existing.id)
+    : supabase.from('memories').insert({ ...fields, kind: 'past' })
+  const { data, error } = await query.select(MEMORY_COLUMNS).single()
+  if (error) throw error
+  return data as unknown as MemoryRecord
+}
+
+/**
+ * Delete a past journal entry and its photos. (A verified visit's memory is
+ * not deleted from the app: the visit stays, and its words can be cleared.)
+ */
+export async function deletePastMemory(memory: MemoryRecord): Promise<void> {
+  if (memory.kind !== 'past') throw new Error('Only a journal entry can be deleted.')
+  const supabase = await getSupabase()
+  const paths = memory.memory_photos.flatMap((p) => [p.storage_path, thumbPathOf(p.storage_path)])
+  const { error } = await supabase.from('memories').delete().eq('id', memory.id)
+  if (error) throw error
+  if (paths.length > 0) await supabase.storage.from(BUCKET).remove(paths).catch(() => {})
 }
 
 const signed = new Map<string, { url: string; expires: number }>()

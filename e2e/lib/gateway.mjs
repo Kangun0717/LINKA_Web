@@ -5,8 +5,10 @@
 //                   column grants and constraints are the real ones
 //   /auth/v1/*    → just enough Auth for the app: password sign-in for the
 //                   temporary test users, /user, /settings, /logout
-//   /storage/v1/* → an in-memory private bucket that enforces "the first
-//                   folder is your user id", like the memory-photos policies
+//   /storage/v1/* → in-memory buckets: memory-photos and suggestion-photos
+//                   are private and enforce "the first folder is your user
+//                   id", like their policies; community-media is public-read
+//                   and has no client writes (staff tooling = the test itself)
 import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import http from 'node:http'
@@ -73,7 +75,9 @@ function fileBody(contentType, raw) {
 }
 
 export function startGateway() {
-  const files = new Map()
+  const memoryFiles = new Map()
+  const suggestionFiles = new Map()
+  const publicFiles = new Map()
   const photo = readFileSync(PHOTO)
 
   const read = (req) => new Promise((resolve) => {
@@ -133,9 +137,21 @@ export function startGateway() {
     }
     if (url.pathname === '/auth/v1/logout') return res.writeHead(204).end()
 
-    const storage = url.pathname.match(/^\/storage\/v1\/object\/(sign\/)?memory-photos\/?(.*)$/)
+    // Public copies LINKA approved: anyone may read, nobody may write through the API.
+    const media = url.pathname.match(/^\/storage\/v1\/object\/public\/community-media\/(.+)$/)
+    if (media) {
+      if (req.method !== 'GET') return send(res, 403, { message: 'community-media is read-only' })
+      const bytes = publicFiles.get(decodeURIComponent(media[1]))
+      return bytes ? send(res, 200, bytes, 'image/jpeg') : send(res, 404, { message: 'not found' })
+    }
+    if (/^\/storage\/v1\/object\/(sign\/)?community-media\//.test(url.pathname)) {
+      return send(res, 403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' })
+    }
+
+    const storage = url.pathname.match(/^\/storage\/v1\/object\/(sign\/)?(memory-photos|suggestion-photos)\/?(.*)$/)
     if (storage) {
-      const [, signed, rest] = storage
+      const [, signed, bucket, rest] = storage
+      const files = bucket === 'memory-photos' ? memoryFiles : suggestionFiles
       const path = decodeURIComponent(rest)
       if (signed && req.method === 'GET') {
         // Objects the seed refers to (legacy photos) are served as the fixture photo.
@@ -147,15 +163,17 @@ export function startGateway() {
       const own = (p) => p.split('/')[0] === claims.sub
       if (signed && req.method === 'POST') {
         const { paths } = JSON.parse(raw.toString())
-        return send(res, 200, paths.map((p) => (own(p)
-          ? { path: p, signedURL: `/object/sign/memory-photos/${p}?token=e2e`, error: null }
+        // As Supabase Storage: an object that does not exist is not signed.
+        const exists = (p) => files.has(p) || p.endsWith('/legacy.jpg')
+        return send(res, 200, paths.map((p) => (own(p) && exists(p)
+          ? { path: p, signedURL: `/object/sign/${bucket}/${p}?token=e2e`, error: null }
           : { path: p, signedURL: null, error: 'Either the object does not exist or you do not have access to it' })))
       }
       if (req.method === 'POST' && path) {
         if (!own(path)) return send(res, 403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' })
         if (files.has(path)) return send(res, 409, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' })
         files.set(path, fileBody(req.headers['content-type'] ?? '', raw))
-        return send(res, 200, { Key: `memory-photos/${path}`, Id: path })
+        return send(res, 200, { Key: `${bucket}/${path}`, Id: path })
       }
       if (req.method === 'DELETE') {
         const { prefixes } = JSON.parse(raw.toString())
@@ -170,6 +188,12 @@ export function startGateway() {
       server.closeAllConnections()
       server.close(done)
     }),
-    storedPaths: () => [...files.keys()],
+    storedPaths: () => [...memoryFiles.keys()],
+    storedBytes: (path) => memoryFiles.get(path) ?? suggestionFiles.get(path) ?? null,
+    suggestionPaths: () => [...suggestionFiles.keys()],
+    /** A photo already in a user's private bucket (for seeded data), as the given bytes or the fixture. */
+    seedFile: (bucket, path, bytes = photo) => (bucket === 'memory-photos' ? memoryFiles : suggestionFiles).set(path, bytes),
+    /** Staff tooling's copy of an approved photo into the public bucket (tests stand in for it). */
+    publish: (from, to) => publicFiles.set(to, suggestionFiles.get(from) ?? photo),
   })))
 }

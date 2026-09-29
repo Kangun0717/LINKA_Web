@@ -79,6 +79,12 @@ export function buildTemplate() {
     sqlFile(join(ROOT, 'supabase/migrations', file), DB.template)
   }
   if (!seeded) sqlFile(join(E2E, 'sql/seed-legacy.sql'), DB.template)
+  // E2E_PENDING=<file in supabase/migrations_pending>: test the app against a
+  // migration that is not applied anywhere yet (forward compatibility).
+  if (process.env.E2E_PENDING) {
+    sqlFile(join(ROOT, 'supabase/migrations_pending', process.env.E2E_PENDING), DB.template)
+    migrations.push(process.env.E2E_PENDING)
+  }
   return migrations
 }
 

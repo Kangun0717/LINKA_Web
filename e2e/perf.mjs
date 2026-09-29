@@ -15,6 +15,7 @@ import { launch, visitor } from './lib/browser.mjs'
 import { ARTIFACTS, POINTS, USERS } from './lib/config.mjs'
 import { stopPostgres } from './lib/db.mjs'
 import { prepare } from './lib/prepare.mjs'
+import { seedCommunity } from './lib/community.mjs'
 import { seedWalkerJourney } from './lib/seed.mjs'
 import { startStack } from './lib/stack.mjs'
 
@@ -35,8 +36,11 @@ const PROBES = () => {
 
 const { server } = await prepare({ appDir: values['app-dir'] })
 const stack = await startStack()
-// A signed-in traveller with a real journey: two places touched, one memory.
+// A signed-in traveller with a real journey: two places touched, one memory —
+// and Community's public suggestions (the new 4C pages; a build without them
+// sends those URLs to the Door, which `routeExists` records).
 seedWalkerJourney()
+const community = seedCommunity(stack)
 
 const browser = await launch(values.browser)
 const results = {}
@@ -144,6 +148,22 @@ await measure('/place (guest)', {
 })
 await measure('moments', { path: '/moments', ready: (p) => p.getByText('A quiet morning with the ibis.').waitFor({ timeout: 30000 }) })
 await measure('me', { path: '/me', ready: (p) => p.getByText('Walker').first().waitFor({ timeout: 30000 }) })
+const exists = (prefix) => (p) => ({ routeExists: new URL(p.url()).pathname.startsWith(prefix) ? 1 : 0 })
+await measure('/community (guest)', {
+  email: null, path: '/community',
+  ready: (p) => p.getByText('北沢浮遊選鉱場跡').first().waitFor({ timeout: 8000 }).catch(() => {}),
+  then: exists('/community'),
+})
+await measure('suggestion (guest)', {
+  email: null, path: `/community/suggestions/${community.kitazawa}`,
+  ready: (p) => p.locator('h1', { hasText: '北沢浮遊選鉱場跡' }).waitFor({ timeout: 8000 }).catch(() => {}),
+  then: exists('/community'),
+})
+await measure('/moments/new', {
+  path: '/moments/new',
+  ready: (p) => p.getByText('Save to my journal').waitFor({ timeout: 8000 }).catch(() => {}),
+  then: exists('/moments/new'),
+})
 
 await browser.close()
 await stack.stop()

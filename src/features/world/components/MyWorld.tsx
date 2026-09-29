@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 
 import CountryMap, { type AreaWash } from '@/features/world/components/CountryMap'
 import DiscoveryCard from '@/features/world/components/DiscoveryCard'
@@ -6,6 +6,7 @@ import DiscoveryMark from '@/features/world/components/DiscoveryMark'
 import FontPrimer from '@/features/world/components/FontPrimer'
 import LocalMap, { type Pocket } from '@/features/world/components/LocalMap'
 import MapLabel from '@/features/world/components/MapLabel'
+import MemoryPin, { type MemoryPinData } from '@/features/world/components/MemoryPin'
 import PlaceCard from '@/features/world/components/PlaceCard'
 import PhotoFragment from '@/features/world/components/PhotoFragment'
 import PlaceLabel from '@/features/world/components/PlaceLabel'
@@ -61,9 +62,22 @@ type MyWorldProps = {
   discovery?: readonly DiscoveryPlace[]
   /** A place whose card is open on arrival (e.g. from another place's card). */
   openPlaceId?: string | null
+  /**
+   * The second layer: the person's own journal entries, taped onto the map
+   * beside the land. They never colour it, and they are not places touched.
+   */
+  memoryPins?: readonly MemoryPinData[]
+  onOpenMemory?: (id: string) => void
+  /** A quiet way elsewhere (Community), set in the corner while no card is open. */
+  corner?: ReactNode
 }
 
+/** Which layer the map shows: verified colour and marks, the journal's memories, or both. */
+export type WorldLayer = 'all' | 'verified' | 'memories'
+const NO_PINS: readonly MemoryPinData[] = []
+
 const NO_PATH: WorldPath = []
+const NO_POCKETS: Pocket[] = []
 const noop = () => {}
 
 /**
@@ -97,7 +111,13 @@ export default function MyWorld({
   onBack = noop,
   discovery = NO_DISCOVERY,
   openPlaceId = null,
+  memoryPins = NO_PINS,
+  onOpenMemory = noop,
+  corner = null,
 }: MyWorldProps) {
+  const [layer, setLayer] = useState<WorldLayer>('all')
+  const showVerified = layer !== 'memories'
+  const showMemories = layer !== 'verified'
   const stageRef = useRef<HTMLDivElement>(null)
   const { width, height } = useElementSize(stageRef)
   const copy = useMessages()
@@ -259,6 +279,21 @@ export default function MyWorld({
     [areaDiscovery, touchedIds, view, location.level, width, height],
   )
 
+  // The journal's memories in this area, beside (never on) the land's colour.
+  const areaMemories = useMemo(() => {
+    const country = shownArea ? COUNTRIES.find((c) => c.areas.some((a) => a.id === shownArea.id)) : null
+    return country && shownArea ? memoryPins.filter((pin) => areaOf(country, pin)?.id === shownArea.id) : []
+  }, [memoryPins, shownArea])
+  const placedMemories = useMemo(
+    () =>
+      view === null || location.level !== 2
+        ? []
+        : areaMemories
+            .map((pin) => ({ pin, at: project(view, pin.lng, pin.lat) }))
+            .filter(({ at }) => at.visible && onScreen(at, width, height)),
+    [areaMemories, view, location.level, width, height],
+  )
+
   const pockets = useMemo<Pocket[]>(
     () =>
       areaPlaces.map((place) => ({
@@ -409,7 +444,7 @@ export default function MyWorld({
               height={height}
               frame={view}
               map={shownArea.map}
-              pockets={pockets}
+              pockets={showVerified ? pockets : NO_POCKETS}
               paper={paper}
               ink={ink}
               resolved={isResolved}
@@ -417,7 +452,8 @@ export default function MyWorld({
           )}
         </div>
 
-        {marks.map(({ place, at }) => {
+        {/* Close in, the Memories layer shows the journal alone: no :))) marks, no colour. */}
+        {(showVerified || location.level !== 2 ? marks : []).map(({ place, at }) => {
           const isArriving = place.id === arrivingId
           const isShown = !isArriving || phase !== 'rest'
           const isSelected = place.id === selectedId && selectedMark !== null
@@ -550,12 +586,66 @@ export default function MyWorld({
               />
             ))}
 
+        {showMemories &&
+          placedMemories.map(({ pin, at }, i) => (
+            <MemoryPin
+              key={pin.placeId}
+              pin={pin}
+              at={at}
+              seed={i}
+              shown={isResolved}
+              label={copy.a11y.memoryPin(pin.name, pin.date)}
+              onOpen={() => onOpenMemory(pin.id)}
+            />
+          ))}
       </div>
 
       {/* The map as it was, copied at the start of a flight and zoomed away on the GPU. */}
       <div ref={ghostRef} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" />
 
       <WorldHeader location={location} isQuiet={isQuiet} onBack={onBack} />
+
+      {corner && (
+        <div
+          className={cn(
+            'absolute right-4 top-[calc(max(2.25rem,env(safe-area-inset-top))+2.4rem)] transition-opacity duration-500 ease-calm',
+            selectedMark || openDiscovery || sheetId ? 'pointer-events-none opacity-0' : 'opacity-100',
+          )}
+        >
+          {corner}
+        </div>
+      )}
+
+      {location.level === 2 && areaMemories.length > 0 && (
+        <div
+          role="radiogroup"
+          aria-label={copy.a11y.layer}
+          className={cn(
+            // Bottom right, over the sea: the island's places and names keep
+            // the rest (its southern tip sits bottom left), and clear of the
+            // navigation, whose paper panel lies over the map's bottom edge.
+            'absolute bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+5.6rem)] right-4 flex rounded-full bg-paper-lit/85 p-0.5 shadow-[0_1px_2px_rgba(51,48,43,0.12)] ring-1 ring-graphite/10 backdrop-blur-sm transition-opacity duration-500',
+            isResolved && !(selectedMark || openDiscovery || sheetId) ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
+        >
+          {(['verified', 'memories', 'all'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={layer === option}
+              onClick={() => setLayer(option)}
+              className={cn(
+                'min-h-8 rounded-full px-2.5 text-[0.6rem] tracking-[0.06em] outline-none focus-visible:ring-1 focus-visible:ring-graphite/40',
+                layer === option ? 'bg-graphite text-paper-lit' : 'text-graphite-soft',
+              )}
+            >
+              {option === 'verified' && <span aria-hidden className="touchpoint-mark mr-1 text-[0.58rem]">:)))</span>}
+              {copy.layers[option]}
+            </button>
+          ))}
+        </div>
+      )}
       <FontPrimer />
 
       {arrivalMark && (

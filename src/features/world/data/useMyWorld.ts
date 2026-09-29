@@ -60,7 +60,7 @@ function worldOf(journey: Journey): WorldSnapshot {
   // drawn them in (where marks overlap, the later one lies on top).
   const firsts = [...journey.verified.firstVisit].sort(([, a], [, b]) => a.first_touched_at.localeCompare(b.first_touched_at))
   for (const [placeId, first] of firsts) {
-    const place = journey.entries.find((entry) => entry.place.id === placeId)!.place
+    const place = journey.visits.find((entry) => entry.place.id === placeId)!.place
     places.push({
       id: place.id,
       name: place.name,

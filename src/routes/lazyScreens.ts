@@ -36,7 +36,18 @@ export const preloadAccount = () => AuthEntryScreen.preload()
 export const MomentsScreen = lazyWithPreload(() => import('@/features/journey/MomentsScreen'))
 export const MeScreen = lazyWithPreload(() => import('@/features/journey/MeScreen'))
 export const MomentScreen = lazyWithPreload(() => import('@/features/journey/MomentScreen'))
-export const SuggestScreen = lazyWithPreload(() => import('@/features/journey/SuggestScreen'))
+/** A journal entry of the person's own (a past memory): added from Moments. */
+export const PastMemoryScreen = lazyWithPreload(() => import('@/features/journey/PastMemoryScreen'))
+
+/**
+ * Community — reached from the map and from Me, never from the Door, so none
+ * of it is fetched until someone is on the map (HomeScreen warms the landing
+ * on idle) or opens a Community link directly.
+ */
+export const CommunityScreen = lazyWithPreload(() => import('@/features/community/screens/CommunityScreen'))
+export const SuggestionsScreen = lazyWithPreload(() => import('@/features/community/screens/SuggestionsScreen'))
+export const SuggestionScreen = lazyWithPreload(() => import('@/features/community/screens/SuggestionScreen'))
+export const SuggestPlaceScreen = lazyWithPreload(() => import('@/features/community/screens/SuggestPlaceScreen'))
 
 /**
  * DEV PREVIEW ONLY — the emergency-notice demonstration on a real place.
@@ -44,6 +55,14 @@ export const SuggestScreen = lazyWithPreload(() => import('@/features/journey/Su
  */
 export const EmergencyDemoScreen = import.meta.env.DEV
   ? lazyWithPreload(() => import('@/features/touch/preview/EmergencyDemoScreen'))
+  : null
+
+/**
+ * DEV PREVIEW ONLY — Sprint 4C Community & Journal prototypes (/preview/4c/*),
+ * sample data only. Absent from production builds.
+ */
+export const Preview4CScreen = import.meta.env.DEV
+  ? lazyWithPreload(() => import('@/features/community/preview/Preview4C'))
   : null
 
 /**
@@ -75,8 +94,13 @@ export function firstRouteReady(pathname: string): Promise<unknown> {
   if (pathname.startsWith('/place/')) return PlaceScreen.preload()
   if (MyWorldPreviewScreen && pathname.startsWith('/preview/')) return MyWorldPreviewScreen.preload()
   if (pathname.startsWith('/home')) HomeScreen.warm()
-  if (pathname.startsWith('/moments/')) MomentScreen.warm()
+  if (pathname === '/moments/new' || pathname.endsWith('/edit')) PastMemoryScreen.warm()
+  else if (pathname.startsWith('/moments/')) MomentScreen.warm()
   else if (pathname.startsWith('/moments')) MomentsScreen.warm()
   if (pathname.startsWith('/me')) MeScreen.warm()
+  if (pathname === '/community') CommunityScreen.warm()
+  else if (pathname === '/community/suggest') SuggestPlaceScreen.warm()
+  else if (pathname.startsWith('/community/suggestions/')) SuggestionScreen.warm()
+  else if (pathname.startsWith('/community/suggestions')) SuggestionsScreen.warm()
   return Promise.resolve()
 }

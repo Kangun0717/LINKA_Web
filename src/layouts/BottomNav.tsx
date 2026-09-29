@@ -17,7 +17,7 @@ const ITEMS: readonly { id: NavId; to: string }[] = [
  * No bar, no icons and no centre "+": the physical :))) Touch Point is how
  * anything is added to LINKA.
  */
-export default function BottomNav({ activeId = 'map' }: { activeId?: NavId }) {
+export default function BottomNav({ activeId = 'map' }: { activeId?: NavId | null }) {
   const copy = useMessages()
 
   return (

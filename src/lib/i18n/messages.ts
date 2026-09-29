@@ -25,7 +25,14 @@ type BaseMessages = {
     localMap: (name: string, nameLatin: string) => string
     discoverable: (name: string, nameLatin: string) => string
     photo: (name: string) => string
+    /** A journal memory taped onto the map — never a LINKA Touch. */
+    memoryPin: (name: string, date: string) => string
+    layer: string
   }
+  /** My World's layers: verified colour and marks, journal memories, or both. */
+  layers: { verified: string; memories: string; all: string }
+  /** The way from the map into Community. */
+  communityEntry: { title: string; second: string }
   place: {
     notVisited: string
     visitedOn: (date: string) => string
@@ -84,7 +91,11 @@ const en: BaseMessages = {
     localMap: (name, nameLatin) => `${name}, ${nameLatin}, a hand-drawn map`,
     discoverable: (name, nameLatin) => `${name}, ${nameLatin}, not visited yet`,
     photo: (name) => `Your photo at ${name}`,
+    memoryPin: (name, date) => `Journal memory: ${name}${date ? `, ${date}` : ''} — not a LINKA Touch`,
+    layer: 'Show on the map',
   },
+  layers: { verified: 'LINKA', memories: 'Memories', all: 'All' },
+  communityEntry: { title: 'Community', second: 'Places travellers found' },
   place: {
     notVisited: 'Not visited yet',
     visitedOn: (date) => `Touched ${date}`,
@@ -138,7 +149,11 @@ const ja: BaseMessages = {
     localMap: (name) => `${name}の手描き地図`,
     discoverable: (name) => `${name}、まだ訪れていません`,
     photo: (name) => `${name}で撮った写真`,
+    memoryPin: (name, date) => `旅の記録：${name}${date ? `、${date}` : ''}（LINKAのタッチではありません）`,
+    layer: '地図に表示するもの',
   },
+  layers: { verified: 'LINKA', memories: '思い出', all: 'すべて' },
+  communityEntry: { title: 'コミュニティ', second: 'みんなが見つけた場所' },
   place: {
     notVisited: 'まだ訪れていません',
     visitedOn: (date) => `${date}にタッチ`,
@@ -192,7 +207,11 @@ const zhHans: BaseMessages = {
     localMap: (name) => `${name}的手绘地图`,
     discoverable: (name) => `${name}，尚未到访`,
     photo: (name) => `你在${name}拍的照片`,
+    memoryPin: (name, date) => `旅行记录：${name}${date ? `，${date}` : ''}（不是 LINKA 触碰）`,
+    layer: '地图上显示',
   },
+  layers: { verified: 'LINKA', memories: '回忆', all: '全部' },
+  communityEntry: { title: '社区', second: '大家发现的地方' },
   place: {
     notVisited: '尚未到访',
     visitedOn: (date) => `${date}触碰`,

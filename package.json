@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test:e2e": "node e2e/run.mjs",
     "perf": "node e2e/perf.mjs",
-    "visual": "node e2e/visual.mjs"
+    "visual": "node e2e/visual.mjs",
+    "test:unit": "node --test e2e/unit/",
+    "test:db": "node e2e/db-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

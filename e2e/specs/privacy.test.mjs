@@ -96,7 +96,7 @@ test('switching accounts in the same tab never shows the previous account\'s pri
   await v.page.waitForURL(/\/home/, { timeout: 20000 })
 
   await navigateInApp(v.page, '/moments')
-  await v.page.getByText('Your moments begin with your first Touch.').waitFor({ timeout: 15000 })
+  await v.page.getByText('Your journal is waiting for its first page.').waitFor({ timeout: 15000 })
   assert.equal(await v.page.getByText('A quiet morning with the ibis.').count(), 0, 'no trace of the previous account')
   assert.ok(v.requests.slice(atSignIn).some((r) => r.includes('/rest/v1/visits')), 'the new account\'s visits were fetched afresh')
 

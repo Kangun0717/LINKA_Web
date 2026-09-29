@@ -14,45 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      community_action_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: number
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: never
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: never
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_action_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_rate_limits: {
+        Row: {
+          action: string
+          max_count: number
+          window_length: string
+        }
+        Insert: {
+          action: string
+          max_count: number
+          window_length: string
+        }
+        Update: {
+          action?: string
+          max_count?: number
+          window_length?: string
+        }
+        Relationships: []
+      }
       memories: {
         Row: {
           cover_photo_id: string | null
           created_at: string
+          date_precision: string
           id: string
+          kind: string
           mood: string | null
           note: string | null
-          place_id: string
+          place_id: string | null
+          place_label: string | null
+          remembered_on: string | null
           touch_event_id: string | null
           updated_at: string
           user_id: string
           visibility: string
-          visit_id: string
+          visit_id: string | null
         }
         Insert: {
           cover_photo_id?: string | null
           created_at?: string
+          date_precision?: string
           id?: string
+          kind?: string
           mood?: string | null
           note?: string | null
-          place_id: string
+          place_id?: string | null
+          place_label?: string | null
+          remembered_on?: string | null
           touch_event_id?: string | null
           updated_at?: string
           user_id?: string
           visibility?: string
-          visit_id: string
+          visit_id?: string | null
         }
         Update: {
           cover_photo_id?: string | null
           created_at?: string
+          date_precision?: string
           id?: string
+          kind?: string
           mood?: string | null
           note?: string | null
-          place_id?: string
+          place_id?: string | null
+          place_label?: string | null
+          remembered_on?: string | null
           touch_event_id?: string | null
           updated_at?: string
           user_id?: string
           visibility?: string
-          visit_id?: string
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -269,62 +328,260 @@ export type Database = {
           },
         ]
       }
+      place_suggestion_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          internal_note: string | null
+          is_public: boolean
+          kind: string
+          occurred_at: string
+          public_note: Json
+          status: string | null
+          suggestion_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          internal_note?: string | null
+          is_public?: boolean
+          kind: string
+          occurred_at?: string
+          public_note?: Json
+          status?: string | null
+          suggestion_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          internal_note?: string | null
+          is_public?: boolean
+          kind?: string
+          occurred_at?: string
+          public_note?: Json
+          status?: string | null
+          suggestion_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "place_suggestion_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_suggestion_events_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "place_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      place_suggestion_photos: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          position: number
+          public_path: string | null
+          review_status: string
+          storage_path: string
+          suggestion_id: string
+          user_id: string
+          width: number
+        }
+        Insert: {
+          created_at?: string
+          height: number
+          id?: string
+          position?: number
+          public_path?: string | null
+          review_status?: string
+          storage_path: string
+          suggestion_id: string
+          user_id?: string
+          width: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          position?: number
+          public_path?: string | null
+          review_status?: string
+          storage_path?: string
+          suggestion_id?: string
+          user_id?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "place_suggestion_photos_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "place_suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_suggestion_photos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      place_suggestion_supports: {
+        Row: {
+          created_at: string
+          suggestion_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          suggestion_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          suggestion_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "place_suggestion_supports_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "place_suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_suggestion_supports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       place_suggestions: {
         Row: {
           address: string | null
+          attribution: string
           created_at: string
+          duplicate_of: string | null
           id: string
           latitude: number | null
           locale: string | null
           longitude: number | null
           name: string
+          opened_at: string | null
           photo_path: string | null
+          place_id: string | null
+          public_area: string | null
+          public_latitude: number | null
+          public_longitude: number | null
+          public_reason: string | null
+          published_at: string | null
           reason: string
           reference_url: string | null
+          region_id: string | null
           review_note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          support_count: number
           updated_at: string
           user_id: string
+          withdrawn_at: string | null
         }
         Insert: {
           address?: string | null
+          attribution?: string
           created_at?: string
+          duplicate_of?: string | null
           id?: string
           latitude?: number | null
           locale?: string | null
           longitude?: number | null
           name: string
+          opened_at?: string | null
           photo_path?: string | null
+          place_id?: string | null
+          public_area?: string | null
+          public_latitude?: number | null
+          public_longitude?: number | null
+          public_reason?: string | null
+          published_at?: string | null
           reason: string
           reference_url?: string | null
+          region_id?: string | null
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          support_count?: number
           updated_at?: string
           user_id?: string
+          withdrawn_at?: string | null
         }
         Update: {
           address?: string | null
+          attribution?: string
           created_at?: string
+          duplicate_of?: string | null
           id?: string
           latitude?: number | null
           locale?: string | null
           longitude?: number | null
           name?: string
+          opened_at?: string | null
           photo_path?: string | null
+          place_id?: string | null
+          public_area?: string | null
+          public_latitude?: number | null
+          public_longitude?: number | null
+          public_reason?: string | null
+          published_at?: string | null
           reason?: string
           reference_url?: string | null
+          region_id?: string | null
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          support_count?: number
           updated_at?: string
           user_id?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "place_suggestions_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "place_suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_suggestions_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_suggestions_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "place_suggestions_reviewed_by_fkey"
             columns: ["reviewed_by"]
@@ -919,8 +1176,60 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      community_suggestion: {
+        Args: { p_id: string }
+        Returns: {
+          id: string
+          name: string
+          opened_at: string
+          photos: string[]
+          place_id: string
+          proposer_name: string
+          public_area: string
+          public_latitude: number
+          public_longitude: number
+          public_reason: string
+          published_at: string
+          reference_url: string
+          region_id: string
+          status: string
+          support_count: number
+        }[]
+      }
+      community_suggestion_timeline: {
+        Args: { p_id: string }
+        Returns: {
+          kind: string
+          occurred_at: string
+          public_note: Json
+          status: string
+        }[]
+      }
+      community_suggestions: {
+        Args: { p_limit?: number; p_statuses?: string[] }
+        Returns: {
+          cover_path: string
+          id: string
+          name: string
+          opened_at: string
+          place_id: string
+          proposer_name: string
+          public_area: string
+          public_latitude: number
+          public_longitude: number
+          public_reason: string
+          published_at: string
+          region_id: string
+          status: string
+          support_count: number
+        }[]
+      }
       generate_public_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      is_public_suggestion_status: {
+        Args: { p_status: string }
+        Returns: boolean
+      }
       place_touches_today: { Args: { p_place_id: string }; Returns: number }
       place_visitors_today: { Args: { p_place_id: string }; Returns: number }
       record_touch: {
@@ -946,6 +1255,9 @@ export type Database = {
           touchpoint_name: string
         }[]
       }
+      suggestion_accepts_support: { Args: { p_id: string }; Returns: boolean }
+      suggestion_support_open: { Args: { p_id: string }; Returns: boolean }
+      withdraw_suggestion: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

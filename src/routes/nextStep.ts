@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 
 import { hasPassword } from '@/features/auth/api'
+import { pendingReturn } from '@/features/auth/pendingReturn'
 import { isProfileComplete, type Profile } from '@/features/onboarding/api'
 import { pendingTouch, touchPath } from '@/features/touch/pendingTouch'
 
@@ -12,12 +13,14 @@ import { pendingTouch, touchPath } from '@/features/touch/pendingTouch'
  * read deliberately routes to onboarding rather than home: onboarding
  * surfaces the write error, whereas home would hide the problem. Once the
  * account is complete, a Touch Point tapped before signing in takes
- * precedence over Home — that is where they were going.
+ * precedence over Home — that is where they were going — and after it, the
+ * page a guest was on when an action there needed an account.
  */
 export function nextStepFor(user: User, profile: Profile | null): string {
   if (!hasPassword(user)) return '/auth/password'
   if (!isProfileComplete(profile)) return '/onboarding'
 
   const pending = pendingTouch.read()
-  return pending ? touchPath(pending) : '/home'
+  if (pending) return touchPath(pending)
+  return pendingReturn.read() ?? '/home'
 }

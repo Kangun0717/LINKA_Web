@@ -56,6 +56,10 @@ export async function startStack() {
   const config = join(CACHE, 'postgrest.conf')
   writePostgrestConfig(config, JWT_SECRET)
   const bin = await ensurePostgrest()
+  // A PostgREST left behind by an interrupted run would answer instead of
+  // this one — from its own, stale schema cache. Refuse rather than test it.
+  const stale = await fetch(`http://127.0.0.1:${PORTS.postgrest}/`).then(() => true, () => false)
+  if (stale) throw new Error(`Port ${PORTS.postgrest} is already serving (a PostgREST from an interrupted run?). Stop it first: lsof -iTCP:${PORTS.postgrest} -sTCP:LISTEN`)
   const postgrest = spawn(bin, [config], {
     env: { ...process.env, DYLD_FALLBACK_LIBRARY_PATH: libpqDir() },
     stdio: ['ignore', 'ignore', 'pipe'],
@@ -66,11 +70,18 @@ export async function startStack() {
   const gateway = await startGateway()
   return {
     storedPaths: gateway.storedPaths,
+    suggestionPaths: gateway.suggestionPaths,
+    storedBytes: gateway.storedBytes,
+    publishPhoto: gateway.publish,
+    seedFile: gateway.seedFile,
     postgrestLog: () => postgrestLog,
     async stop() {
       await gateway.close()
       postgrest.kill()
+      // PostgREST can ignore SIGTERM while it retries a connection; never leave it running.
+      const force = setTimeout(() => postgrest.kill('SIGKILL'), 3000)
       await new Promise((resolve) => (postgrest.exitCode !== null ? resolve() : postgrest.once('exit', resolve)))
+      clearTimeout(force)
     },
   }
 }
