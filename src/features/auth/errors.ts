@@ -44,6 +44,9 @@ export function describeAuthError(error: unknown, fallback: string, t: AuthMessa
       case 'phone_provider_disabled':
       case 'sms_send_failed':
         return t.phoneUnavailable
+      case 'oauth_provider_not_supported':
+      case 'provider_disabled':
+        return t.oauthUnavailable
       case 'reauthentication_needed':
         return t.reauth
       default:
