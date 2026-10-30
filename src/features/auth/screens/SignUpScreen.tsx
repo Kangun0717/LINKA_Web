@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button'
 import Screen from '@/components/ui/Screen'
 import { sendSignUpCode } from '@/features/auth/api'
 import { IdentityField, MethodSwitch } from '@/features/auth/components/IdentityField'
+import OAuthButtons from '@/features/auth/components/OAuthButtons'
 import { toIdentity, usePhoneAvailable, type IdentityMethod } from '@/features/auth/identity'
 import { describeAuthError } from '@/features/auth/errors'
 import { pendingIdentity } from '@/features/auth/pendingIdentity'
@@ -85,6 +86,7 @@ export default function SignUpScreen() {
           <Button type="submit" loading={sending} busyLabel={t.busy} disabled={method === 'phone' && phoneAvailable !== true}>
             {t.signUp.send}
           </Button>
+          <OAuthButtons />
           <p className="text-center text-xs text-sand-faint">
             {t.signUp.already}{' '}
             <Link to="/auth/signin" replace className="text-sand-muted underline-offset-4 hover:underline">
