@@ -97,8 +97,8 @@ const noop = () => {}
  *   :)))   touched      — a verified physical visit, and colour around it
  *   :))) + photograph   — remembered: a real moment laid on the drawn map
  *
- * Two gestures, kept apart. A Touch Point (or ○) opens its card. An area —
- * its wash, or its name — is the way into it.
+ * Two gestures, kept apart. A Touch Point (or ○), and the name written beside
+ * it, opens its card. An area — its wash, or its name — is the way into it.
  *
  * It does not know where its places come from: production passes the user's
  * own (today, none) and the dev preview passes its scenarios.
@@ -553,6 +553,7 @@ export default function MyWorld({
         {localLabels.map((label) => {
           const isOpen =
             (label.touched ? selectedMark?.place.id : openDiscovery?.id) === label.id
+          const touched = label.touched ? marks.find(({ place }) => place.id === label.id)?.place : undefined
           return (
             <MapLabel
               key={label.id}
@@ -563,6 +564,16 @@ export default function MyWorld({
               // A touched mark wears its ))) to the right; the name stands clear of it.
               gap={label.side === 'below' ? 12 : label.touched && label.side === 'right' ? 30 : 15}
               shown={isResolved && !isOpen}
+              onOpen={() => (label.touched ? chooseTouched(label.id) : chooseDiscovery(label.id))}
+              openLabel={
+                touched
+                  ? copy.a11y.place(
+                      touched.name,
+                      touched.locality,
+                      formatCalendarDate(touched.firstTouchedOn ?? touched.firstTouchedAt, locale),
+                    )
+                  : copy.a11y.discoverable(label.name, label.nameLatin ?? label.name)
+              }
               delayMs={label.touched ? 1500 : 700}
               tone={label.touched ? 'lived' : 'quiet'}
             />

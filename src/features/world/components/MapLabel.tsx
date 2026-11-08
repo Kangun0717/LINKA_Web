@@ -13,6 +13,9 @@ type MapLabelProps = {
   /** Present when the label is a way in. */
   onEnter?: () => void
   enterLabel?: string
+  /** Present when the words themselves open the place. No chevron. */
+  onOpen?: () => void
+  openLabel?: string
   /** Waits this long before appearing, so labels follow what they name. */
   delayMs?: number
   /** `quiet` for what has only been discovered: the same words, in pencil. */
@@ -24,7 +27,8 @@ type MapLabelProps = {
  *
  * Written, not placed: no surface or pin, only the name with a paper-coloured
  * halo so it reads over any wash. A label that can be entered is a button and
- * carries one small, quiet chevron; the rest are only words.
+ * carries one small, quiet chevron. A place's own name is a button too, with
+ * no chevron: pressing the words opens that place. The rest are only words.
  */
 export default function MapLabel({
   name,
@@ -35,6 +39,8 @@ export default function MapLabel({
   shown,
   onEnter,
   enterLabel,
+  onOpen,
+  openLabel,
   delayMs = 0,
   tone = 'lived',
 }: MapLabelProps) {
@@ -79,22 +85,26 @@ export default function MapLabel({
     shown ? 'opacity-100' : 'pointer-events-none opacity-0',
   )
   const style = { ...position, transitionDelay: shown ? `${delayMs}ms` : '0ms' }
+  const onPress = onEnter ?? onOpen
 
-  if (onEnter) {
+  if (onPress) {
     return (
       <button
         type="button"
-        aria-label={enterLabel}
+        aria-label={onEnter ? enterLabel : openLabel}
         aria-hidden={!shown}
         tabIndex={shown ? 0 : -1}
-        onClick={onEnter}
+        onClick={onPress}
         style={style}
         className={cn(
           shared,
-          // A full-size target around small words.
-          'min-h-11 justify-center rounded-lg px-2 py-1.5 outline-none focus-visible:ring-1 focus-visible:ring-graphite/30',
+          'justify-center rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-graphite/30',
+          // The padding reaches toward the mark; the opposite margin puts the
+          // words back where they were written.
+          onEnter ? 'min-h-11 px-2 py-1.5' : 'px-2 py-1',
           side === 'right' && '-ml-2',
           side === 'left' && 'ml-2',
+          !onEnter && side === 'below' && '-mt-1',
         )}
       >
         {words}
