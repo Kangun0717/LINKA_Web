@@ -19,10 +19,12 @@
 | 権限 | Postgres RLS と `SECURITY DEFINER` 関数 | — | ブラウザが DB を叩いても、出してよい行・列だけ |
 | Lint | Oxlint | 1 | `npm run lint` |
 | E2E | Playwright Core + ローカル Postgres 17 + PostgREST | — | 本番の RLS を相手にする。本番プロジェクトには触れない |
+| 公開 | Cloudflare Workers（静的アセット） | — | Pages と Workers の無料枠。商業利用の Vercel は有料になる |
 
 **入れてないもの（意図的）**
 
 - Next.js / SSR — ドア・地球儀・タッチはクライアント専用。公開ページの SEO が必要になったら `/place/*` だけ足す余地はある
+- Vercel — 商業利用で有料になる。公開面は Cloudflare に置く
 - Docker / `docker-compose` / `supabase start` — リポジトリに無い。日常はクラウドの共有プロジェクトを叩く
 - 自前 REST / GraphQL — 書き込みの要所は SQL 関数。読みは PostgREST + RLS
 - React Compiler — ビルドへの影響でオフ
@@ -73,6 +75,18 @@ npm run dev            # http://localhost:5173
 | `npm run test:db` | マイグレーション履歴に対する SQL テスト |
 
 E2E は Docker ではなく、PostgreSQL 17 バイナリ + ダウンロードした PostgREST + 偽 Auth ゲートウェイ。`VITE_SUPABASE_URL` をゲートウェイに向けてビルドし、本番プロジェクト名が成果物に入っていたら起動を拒否する。
+
+---
+
+## 公開
+
+ビルドした SPA を Cloudflare Workers の静的アセットとして出している（`wrangler.jsonc`。`dist`、未知のパスは `index.html`）。
+
+Cloudflare を使う理由は二つある。公開面をそこに置く、というセキュリティ上の判断。そして商業利用に進んだとき、Vercel は有料になること。Cloudflare の Pages と Workers は無料枠のまま使える。
+
+いま載っているのは emre.t.hatanaka@gmail.com の Cloudflare プロジェクトである。`workers.dev` の URL にその名前が出る。次は LINKA 名義の Cloudflare プロジェクト（無料）を作り、そちらで公開する。
+
+Supabase の Redirect URLs には、その公開用の `https://….workers.dev` を追加してある。`localhost` も残っており、ローカル開発はそのまま動く。OAuth の戻り先とパスワード復旧は、開いているオリジン（`window.location.origin`）を使う。Dashboard に無いオリジンでは戻ってこない。
 
 ---
 
@@ -127,7 +141,7 @@ NFC の URL は `/t/:publicId`。場所を先に見せ、記録はサインイ�
 
 1. **新規** — `signInWithOtp` で 6 桁コード。所有確認のあとパスワード。毎回コードでは入らない
 2. **ログイン** — メール（または将来の電話）+ パスワード
-3. **復旧** — Supabase のリセットメール。戻り先 `/auth/reset` は Dashboard の Redirect URLs に入れる
+3. **復旧** — Supabase のリセットメール。戻り先 `/auth/reset` は Dashboard の Redirect URLs に入れる（公開用の `workers.dev` と `localhost`。詳細は「公開」）
 
 `password_set` は `user_metadata` のルーティング用。改ざんされてもパスワード設定画面を飛ばせるだけで、権限には使わない。
 
