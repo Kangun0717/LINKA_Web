@@ -6,6 +6,7 @@ import Screen from '@/components/ui/Screen'
 import TextField from '@/components/ui/TextField'
 import { signInWithPassword } from '@/features/auth/api'
 import { IdentityField, MethodSwitch } from '@/features/auth/components/IdentityField'
+import OAuthButtons from '@/features/auth/components/OAuthButtons'
 import { toIdentity, usePhoneAvailable, type IdentityMethod } from '@/features/auth/identity'
 import { describeAuthError } from '@/features/auth/errors'
 import { doorSession } from '@/features/door/doorSession'
@@ -111,6 +112,7 @@ export default function SignInScreen() {
           <Button type="submit" loading={signingIn} busyLabel={t.busy} disabled={method === 'phone' && phoneAvailable !== true}>
             {t.signIn.submit}
           </Button>
+          <OAuthButtons />
           <p className="text-center text-xs text-sand-faint">
             {t.signIn.newHere}{' '}
             <Link to="/auth/signup" replace className="text-sand-muted underline-offset-4 hover:underline">

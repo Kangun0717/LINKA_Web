@@ -16,6 +16,7 @@ export type AuthMessages = {
   signUp: { title: string; body: string; send: string; already: string; signIn: string }
   verify: { title: (where: 'email' | 'phone') => string; sentTo: string; verify: string; resend: string; resendIn: (s: number) => string; newCode: string; differentEmail: string; differentNumber: string }
   signIn: { title: string; submit: string; forgot: string; newHere: string; create: string }
+  oauth: { or: string; google: string; apple: string }
   forgot: { title: string; body: string; send: string; sentTitle: string; sentBody: (email: string) => string; back: string; phoneNote: string }
   password: { createTitle: string; createBody: string; resetTitle: string; resetBody: string; continue: string; save: string }
   reset: { expiredTitle: string; expiredBody: string; newLink: string }
@@ -54,6 +55,8 @@ export type AuthMessages = {
     offline: string
     sendFailed: string
     signInFailed: string
+    oauthFailed: string
+    oauthUnavailable: string
     saveFailed: string
   }
 }
@@ -67,6 +70,7 @@ const en: AuthMessages = {
   signUp: { title: 'Create your account', body: 'We’ll send a six-digit code to confirm it’s yours. You’ll choose a password next.', send: 'Send code', already: 'Already have an account?', signIn: 'Sign in' },
   verify: { title: (where) => (where === 'email' ? 'Check your email' : 'Check your phone'), sentTo: 'We’ve sent a 6-digit code to', verify: 'Verify', resend: 'Resend code', resendIn: (s) => `Resend code in ${s}s`, newCode: 'A new code is on its way.', differentEmail: 'Use a different email', differentNumber: 'Use a different number' },
   signIn: { title: 'Welcome back', submit: 'Sign in', forgot: 'Forgot password?', newHere: 'New to LINKA?', create: 'Create account' },
+  oauth: { or: 'or', google: 'Continue with Google', apple: 'Continue with Apple' },
   forgot: { title: 'Reset your password', body: 'We’ll email you a link to choose a new one.', send: 'Send link', sentTitle: 'Check your email', sentBody: (email) => `If there is a LINKA account for ${email}, a link to set a new password is on its way. Open it on this device.`, back: 'Back to sign in', phoneNote: 'Password recovery is by email. Recovery for phone-only accounts will arrive with phone sign-in.' },
   password: { createTitle: 'Choose a password', createBody: 'Next time, sign in with it — no code needed.', resetTitle: 'Set a new password', resetBody: 'You will use it the next time you sign in.', continue: 'Continue', save: 'Save password' },
   reset: { expiredTitle: 'This link has expired', expiredBody: 'Recovery links work once, for a short time. Ask for a new one and open it on this device.', newLink: 'Send a new link' },
@@ -83,7 +87,9 @@ const en: AuthMessages = {
     wrongPassword: 'That password does not match. Try again, or reset it below.', notConfirmed: 'This account has not been confirmed yet. Create your account again to get a new code.',
     weakPassword: 'Choose a longer password — at least 8 characters, not easy to guess.', samePassword: 'That is already your password. Choose a new one.', phoneUnavailable: 'Phone sign-in is not available yet. Please use email.',
     reauth: 'For your security, please sign in again before changing your password.', offline: 'We could not reach LINKA. Check your connection and try again.',
-    sendFailed: 'We could not send your code. Please try again.', signInFailed: 'We could not sign you in. Please try again.', saveFailed: 'We could not save your password. Please try again.',
+    sendFailed: 'We could not send your code. Please try again.', signInFailed: 'We could not sign you in. Please try again.',
+    oauthFailed: 'We could not continue with that account. Please try again.', oauthUnavailable: 'That sign-in method is not switched on for LINKA yet.',
+    saveFailed: 'We could not save your password. Please try again.',
   },
 }
 
@@ -96,6 +102,7 @@ const ja: AuthMessages = {
   signUp: { title: 'アカウントを作成', body: '6桁の確認コードをお送りします。次にパスワードを設定します。', send: 'コードを送る', already: 'アカウントをお持ちの方は', signIn: 'サインイン' },
   verify: { title: (where) => (where === 'email' ? 'メールを確認してください' : 'SMSを確認してください'), sentTo: '6桁のコードを送信しました：', verify: '確認する', resend: 'コードを再送する', resendIn: (s) => `${s}秒後に再送できます`, newCode: '新しいコードを送信しました。', differentEmail: '別のメールアドレスを使う', differentNumber: '別の電話番号を使う' },
   signIn: { title: 'おかえりなさい', submit: 'サインイン', forgot: 'パスワードをお忘れですか？', newHere: 'はじめての方は', create: 'アカウントを作成' },
+  oauth: { or: 'または', google: 'Googleで続ける', apple: 'Appleで続ける' },
   forgot: { title: 'パスワードの再設定', body: '新しいパスワードを設定するためのリンクをメールでお送りします。', send: 'リンクを送る', sentTitle: 'メールを確認してください', sentBody: (email) => `${email} のLINKAアカウントがある場合、パスワード再設定のリンクをお送りしました。この端末で開いてください。`, back: 'サインインに戻る', phoneNote: 'パスワードの再設定はメールで行います。電話番号のみのアカウントの再設定は、電話番号サインインの提供開始後に対応します。' },
   password: { createTitle: 'パスワードを設定', createBody: '次回からはパスワードでサインインできます。コードは不要です。', resetTitle: '新しいパスワードを設定', resetBody: '次回のサインインから使います。', continue: '次へ', save: 'パスワードを保存' },
   reset: { expiredTitle: 'このリンクは有効期限が切れています', expiredBody: '再設定のリンクは一度だけ、短い時間のみ有効です。新しいリンクをこの端末で開いてください。', newLink: '新しいリンクを送る' },
@@ -112,7 +119,9 @@ const ja: AuthMessages = {
     wrongPassword: 'パスワードが一致しません。もう一度入力するか、下から再設定してください。', notConfirmed: 'このアカウントはまだ確認されていません。アカウント作成から新しいコードを受け取ってください。',
     weakPassword: '8文字以上の、推測されにくいパスワードにしてください。', samePassword: '現在と同じパスワードです。別のパスワードを設定してください。', phoneUnavailable: '電話番号でのサインインは現在ご利用いただけません。メールをご利用ください。',
     reauth: '安全のため、パスワード変更の前にもう一度サインインしてください。', offline: 'LINKAに接続できませんでした。通信環境をご確認ください。',
-    sendFailed: 'コードを送信できませんでした。もう一度お試しください。', signInFailed: 'サインインできませんでした。もう一度お試しください。', saveFailed: 'パスワードを保存できませんでした。もう一度お試しください。',
+    sendFailed: 'コードを送信できませんでした。もう一度お試しください。', signInFailed: 'サインインできませんでした。もう一度お試しください。',
+    oauthFailed: 'このアカウントでは続行できませんでした。もう一度お試しください。', oauthUnavailable: 'このサインイン方法はまだ有効になっていません。',
+    saveFailed: 'パスワードを保存できませんでした。もう一度お試しください。',
   },
 }
 
@@ -125,6 +134,7 @@ const zhHans: AuthMessages = {
   signUp: { title: '创建账户', body: '我们会发送一个6位验证码，确认这是你的邮箱。接下来设置密码。', send: '发送验证码', already: '已有账户？', signIn: '登录' },
   verify: { title: (where) => (where === 'email' ? '请查看邮箱' : '请查看短信'), sentTo: '6位验证码已发送至', verify: '验证', resend: '重新发送验证码', resendIn: (s) => `${s}秒后可重新发送`, newCode: '新的验证码已发送。', differentEmail: '使用其他邮箱', differentNumber: '使用其他号码' },
   signIn: { title: '欢迎回来', submit: '登录', forgot: '忘记密码？', newHere: '第一次使用 LINKA？', create: '创建账户' },
+  oauth: { or: '或', google: '使用 Google 继续', apple: '使用 Apple 继续' },
   forgot: { title: '重置密码', body: '我们会通过邮件发送一个设置新密码的链接。', send: '发送链接', sentTitle: '请查看邮箱', sentBody: (email) => `如果 ${email} 已注册 LINKA，设置新密码的链接已发送。请在本设备上打开。`, back: '返回登录', phoneNote: '密码通过邮箱重置。仅绑定手机号的账户，将在手机号登录开放后支持重置。' },
   password: { createTitle: '设置密码', createBody: '下次用密码登录即可，无需验证码。', resetTitle: '设置新密码', resetBody: '下次登录时使用。', continue: '继续', save: '保存密码' },
   reset: { expiredTitle: '此链接已失效', expiredBody: '重置链接只能使用一次，且有效时间很短。请获取新链接并在本设备上打开。', newLink: '发送新链接' },
@@ -141,7 +151,9 @@ const zhHans: AuthMessages = {
     wrongPassword: '密码不正确。请重试，或在下方重置。', notConfirmed: '此账户尚未验证。请重新创建账户以获取新验证码。',
     weakPassword: '请设置至少8个字符、不易被猜到的密码。', samePassword: '这已是你当前的密码，请设置新密码。', phoneUnavailable: '手机号登录暂不可用，请使用邮箱。',
     reauth: '为了安全，修改密码前请重新登录。', offline: '无法连接 LINKA，请检查网络后重试。',
-    sendFailed: '验证码发送失败，请重试。', signInFailed: '登录失败，请重试。', saveFailed: '密码保存失败，请重试。',
+    sendFailed: '验证码发送失败，请重试。', signInFailed: '登录失败，请重试。',
+    oauthFailed: '无法使用该账户继续，请重试。', oauthUnavailable: '该登录方式尚未开启。',
+    saveFailed: '密码保存失败，请重试。',
   },
 }
 
